@@ -10,7 +10,13 @@ import tseslint from 'typescript-eslint';
  */
 export function baseConfig({ tsconfigRootDir }) {
   return defineConfig(
-    globalIgnores(['**/dist/**', '**/coverage/**', '**/node_modules/**', '**/.turbo/**']),
+    globalIgnores([
+      '**/dist/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      '**/.turbo/**',
+      '**/cdk.out/**',
+    ]),
     js.configs.recommended,
     tseslint.configs.recommendedTypeChecked,
     {
