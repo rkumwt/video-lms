@@ -2,7 +2,7 @@
 
 Record your screen (optionally with camera + mic), save it to local disk or S3, and browse your library.
 
-> **Status:** Phase 1 — monorepo foundation, hello-world web, API `/health`.
+> **Status:** Phase 2 — multi-stage Dockerfiles + docker compose.
 
 ## Repository layout
 
@@ -35,7 +35,7 @@ docs/        Engineering guides (git workflow, CI/CD, ADRs)
 
 - Node **24** (`nvm install 24 && nvm use` — the repo has `.nvmrc`)
 - pnpm **9** (`corepack enable` or `npm i -g pnpm@9`)
-- Docker (from Phase 2)
+- Docker Desktop (≥ 4 GB memory)
 
 ## Getting started
 
@@ -77,6 +77,60 @@ cd apps/web && pnpm dlx shadcn@latest add card
 
 Check the generated import is `@/lib/utils` (the CLI sometimes writes `"cn"`).
 
+## Docker
+
+Each deployable app has its own multi-stage `Dockerfile`; the build context is always the repo root.
+
+| Image                    | Stages                           | Runtime                              | Used on AWS                              |
+| ------------------------ | -------------------------------- | ------------------------------------ | ---------------------------------------- |
+| `apps/api/Dockerfile`    | base → pruner → builder → runner | `node:24-slim`, non-root `node` user | ECS Fargate                              |
+| `apps/worker/Dockerfile` | same                             | same                                 | ECS Fargate                              |
+| `apps/web/Dockerfile`    | … → `nginx-unprivileged`         | static files + `/api` proxy          | No (S3 + CloudFront) — local parity only |
+
+How the build stays fast and small:
+
+1. **`turbo prune <app> --docker`** copies only the workspace packages the app depends on, split into
+   `out/json` (manifests + lockfile) and `out/full` (sources).
+2. `pnpm install --frozen-lockfile` runs on manifests only, so that layer is cached until dependencies
+   change. The pnpm store is a BuildKit cache mount.
+3. `pnpm deploy --prod` produces a self-contained folder (prod `node_modules` + `dist`), copied into
+   a clean runtime stage. No compilers, sources or dev dependencies ship.
+4. `APP_VERSION` build arg (CI passes the git SHA) is exposed by `/health`.
+
+**Why `node:24-slim` and not Alpine:** Vite 8's native bundler (rolldown) crashes with a bus error on
+Alpine/musl arm64, and Prisma (Phase 5) also prefers glibc. Builder and runtime use the same base so
+native modules always match. Images are built for **arm64**, which matches Apple Silicon and the
+cheaper Graviton Fargate tasks we'll use in Phase 3.
+
+### Compose stack
+
+```bash
+cp .env.example .env          # local-only credentials, git-ignored
+pnpm docker:deps              # Postgres only -> run apps on the host with `pnpm dev`
+pnpm docker:up                # Postgres + api + worker + web (built from Dockerfiles)
+pnpm docker:logs
+pnpm docker:down              # keeps the pgdata volume; add `-v` to wipe it
+```
+
+| Service               | URL                                | Profile |
+| --------------------- | ---------------------------------- | ------- |
+| web (nginx)           | http://localhost:8080              | `app`   |
+| api                   | http://localhost:4000/health       | `app`   |
+| worker                | — (logs only)                      | `app`   |
+| postgres              | `localhost:${POSTGRES_PORT:-5432}` | default |
+| localstack (S3 + SQS) | http://localhost:4566              | `aws`   |
+
+LocalStack is optional: `docker compose --profile aws up -d localstack`. Its init script
+(`docker/localstack/init-aws.sh`) creates the `vlp-videos-local` bucket (with CORS) and the
+`vlp-video-events` queue + DLQ (maxReceiveCount 5), mirroring what CDK will create on AWS.
+If a newer LocalStack image asks for a token, set `LOCALSTACK_AUTH_TOKEN` in `.env`.
+
+Build a single image manually:
+
+```bash
+docker build -f apps/api/Dockerfile --build-arg APP_VERSION=$(git rev-parse --short HEAD) -t vlp-api .
+```
+
 ## Environment variables
 
 Every app ships a `.env.example`. Real `.env` files are git-ignored. On AWS, values come from
@@ -90,7 +144,7 @@ See [docs/git-workflow.md](docs/git-workflow.md) for branching, PRs, branch prot
 ## Roadmap
 
 1. ✅ Monorepo, configs, hello-world web, API `/health`
-2. Multi-stage Dockerfiles + docker-compose
+2. ✅ Multi-stage Dockerfiles + docker compose
 3. AWS CDK stack (VPC, ECR, ECS, ALB, S3, CloudFront)
 4. GitHub Actions PR checks + auto deploy (OIDC)
 5. Prisma schema, RDS, migrations in pipeline
