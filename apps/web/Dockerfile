@@ -28,7 +28,7 @@ ARG VITE_API_URL=""
 ENV VITE_API_URL=${VITE_API_URL}
 RUN turbo run build --filter=@vlp/web
 
-FROM nginxinc/nginx-unprivileged:1.29-alpine AS runner
+FROM nginxinc/nginx-unprivileged:1.31-alpine AS runner
 COPY docker/nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 ENV API_UPSTREAM=http://api:4000
