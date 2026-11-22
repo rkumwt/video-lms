@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_call: # reused by deploy.yml so main is re-verified before every deploy
+
+permissions:
+  contents: read
+
+concurrency:
+  # New pushes to a PR cancel its previous run; deploy calls are keyed by SHA and never cancelled.
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: '1'
+  HUSKY: '0'
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6 # version comes from "packageManager" in package.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint PR title (it becomes the squash-commit message)
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | pnpm exec commitlint
+
+      - name: Restore Turborepo cache
+        uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - run: pnpm format:check
+
+      - name: Lint, typecheck, test, build (incl. CDK synth + cdk-nag via infra tests)
+        run: pnpm turbo run lint typecheck test build --cache-dir=.turbo/cache
+
+  docker:
+    name: Docker build (${{ matrix.app }})
+    # Only on PRs: deploy.yml builds (and pushes) the real images.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04-arm # native arm64 = same arch as Fargate Graviton, no QEMU
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, worker, web]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          platforms: linux/arm64
+          push: false
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}

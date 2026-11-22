@@ -12,11 +12,12 @@ Three stacks, deployed to **ap-south-1 (Mumbai)** by default. You can change it 
  Vlp-Network    (free):   VPC 10.20.0.0/16 · 2 AZ · public + isolated subnets · S3 gateway endpoint
 ```
 
-| Stack            | Contents                                                                                              | Delete safely?                                                                            |
-| ---------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `Vlp-Network`    | VPC, subnets, S3 gateway endpoint                                                                     | Yes, after `Vlp-App`                                                                      |
-| `Vlp-Foundation` | ECR repos, videos bucket (retained), SNS alerts topic, monthly budget. **Termination protection on.** | Bucket is kept on purpose                                                                 |
-| `Vlp-App`        | ECS cluster + api/worker services, ALB, web bucket, CloudFront, alarms, log groups                    | **Yes. Destroy it when you are not using the app, so you stop paying for it by the hour** |
+| Stack            | Contents                                                                                                                           | Delete safely?                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `Vlp-Network`    | VPC, subnets, S3 gateway endpoint                                                                                                  | Yes, after `Vlp-App`                                                                      |
+| `Vlp-Foundation` | ECR repos, videos bucket (retained), SNS alerts topic, monthly budget. **Termination protection on.**                              | Bucket is kept on purpose                                                                 |
+| `Vlp-CiCd`       | GitHub OIDC deploy role `vlp-github-deploy` (imports the account's existing OIDC provider). Deployed by an admin only, never by CI | Yes (CI stops working)                                                                    |
+| `Vlp-App`        | ECS cluster + api/worker services, ALB, web bucket, CloudFront, alarms, log groups                                                 | **Yes. Destroy it when you are not using the app, so you stop paying for it by the hour** |
 
 ## Key decisions
 

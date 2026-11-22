@@ -1,0 +1,144 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # One production deploy at a time; queue instead of cancelling a half-finished rollout.
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  TURBO_TELEMETRY_DISABLED: '1'
+  HUSKY: '0'
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  images:
+    name: Image (${{ matrix.app }})
+    needs: ci
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # GitHub OIDC -> AWS STS
+    strategy:
+      matrix:
+        app: [api, worker]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - id: meta
+        name: Compute image tag
+        run: |
+          tag="${GITHUB_SHA::12}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          # Tags are immutable: re-runs of the same commit skip the build.
+          if aws ecr describe-images --repository-name "vlp/${{ matrix.app }}" \
+               --image-ids "imageTag=$tag" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.meta.outputs.exists != 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - if: steps.meta.outputs.exists != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          platforms: linux/arm64
+          push: true
+          provenance: false # single manifest so ECR scan-on-push works
+          sbom: false
+          build-args: APP_VERSION=${{ steps.meta.outputs.tag }}
+          tags: ${{ steps.ecr.outputs.registry }}/vlp/${{ matrix.app }}:${{ steps.meta.outputs.tag }}
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+
+  deploy:
+    name: Deploy to production
+    needs: images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: ${{ steps.smoke.outputs.app_url }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CDK_DEFAULT_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+      CDK_DEFAULT_REGION: ${{ vars.AWS_REGION }}
+      VLP_ALERT_EMAIL: ${{ secrets.VLP_ALERT_EMAIL }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set image tag
+        run: echo "VLP_IMAGE_TAG=${GITHUB_SHA::12}" >> "$GITHUB_ENV"
+
+      - name: Database migrations
+        # Phase 5: run `prisma migrate deploy` as a one-off ECS task with the new image,
+        # BEFORE services roll, so new code never runs against an old schema.
+        run: echo "No database yet (added in Phase 5)"
+
+      - name: CDK deploy (rolling ECS update, circuit breaker auto-rollback)
+        working-directory: infra
+        # Vlp-CiCd is intentionally excluded: the pipeline must not manage its own permissions.
+        run: >
+          pnpm exec cdk deploy Vlp-Network Vlp-Foundation Vlp-App
+          --require-approval never
+          --concurrency 2
+          --progress events
+
+      - name: Deploy web (S3 sync + CloudFront invalidation)
+        run: scripts/deploy/deploy-web.sh
+
+      - id: smoke
+        name: Smoke test
+        run: |
+          url=$(aws cloudformation describe-stacks --stack-name Vlp-App \
+            --query "Stacks[0].Outputs[?OutputKey=='AppUrl'].OutputValue" --output text)
+          echo "app_url=$url" >> "$GITHUB_OUTPUT"
+          for i in $(seq 1 20); do
+            version=$(curl -fsS "$url/api/health" | jq -r .version || true)
+            if [ "$version" = "$VLP_IMAGE_TAG" ]; then
+              echo "✅ $url is serving $version"
+              exit 0
+            fi
+            echo "waiting for $VLP_IMAGE_TAG (got '${version}')... ($i/20)"
+            sleep 15
+          done
+          echo "::error::Smoke test failed: $url/api/health did not report $VLP_IMAGE_TAG"
+          exit 1

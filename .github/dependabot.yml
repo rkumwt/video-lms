@@ -1,0 +1,38 @@
+version: 2
+updates:
+  - package-ecosystem: npm # pnpm workspaces are supported via pnpm-lock.yaml
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    groups:
+      # One PR per week for patch/minor updates; majors arrive individually for review.
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # typescript-eslint does not support TypeScript 7 yet (see README).
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: docker
+    directories: [/apps/api, /apps/worker, /apps/web]
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+      include: scope

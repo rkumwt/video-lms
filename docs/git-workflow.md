@@ -35,8 +35,7 @@ lets tools (release-please / semantic-release) generate changelogs later.
 2. **Settings → Rules → Rulesets → New branch ruleset** targeting `main`:
    - Restrict deletions, block force pushes
    - Require a pull request before merging (1 approval if you have a reviewer; 0 if solo)
-   - Require status checks to pass: `lint`, `typecheck`, `test`, `build` (they appear after the
-     first CI run in Phase 4)
+   - Require status checks to pass: `Checks` (the CI job that runs lint, typecheck, test and build)
    - Require linear history
    - Require branches to be up to date before merging
 3. **Settings → Environments → New environment `production`**: optional required reviewer
@@ -44,7 +43,9 @@ lets tools (release-please / semantic-release) generate changelogs later.
 4. **Settings → Code security**: enable Dependabot alerts + security updates, secret scanning and
    push protection.
 
-## CI/CD pattern (implemented in Phase 4)
+## CI/CD pattern
+
+Implemented in Phase 4. Details, setup and rollback: [ci-cd.md](ci-cd.md).
 
 ```
 PR opened/updated ──► ci.yml

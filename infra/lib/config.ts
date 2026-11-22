@@ -26,6 +26,10 @@ export interface VlpConfig {
   api: ServiceSize;
   worker: ServiceSize & { useSpot: boolean };
   logRetention: RetentionDays;
+  /** `owner/name` of the GitHub repo allowed to deploy via OIDC. */
+  githubRepo: string;
+  /** The account already has the GitHub OIDC provider (only one is allowed per account). */
+  githubOidcProviderExists: boolean;
 }
 
 /**
@@ -57,5 +61,7 @@ export function loadConfig(app: App): VlpConfig {
     api: { cpu: 256, memoryMiB: 512, desiredCount: 1 },
     worker: { cpu: 256, memoryMiB: 512, desiredCount: 1, useSpot: true },
     logRetention: RetentionDays.TWO_WEEKS,
+    githubRepo: ctx('githubRepo') ?? 'rkumwt/video-lms',
+    githubOidcProviderExists: (ctx('githubOidcProviderExists') ?? 'true') === 'true',
   };
 }
