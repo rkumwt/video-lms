@@ -44,6 +44,20 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 # Amazon RDS CA bundle so TLS to RDS is *verified* (enabled on AWS via DB_SSL_CA).
 ADD --chmod=644 https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
+# Prisma's migration engine only reads the FIRST certificate of a PEM file, so also extract the single
+# regional root CA our RDS instance chains to (CDK: caCertificate RDS_CA_RSA2048_G1). RDS sends the
+# intermediate itself. The build fails if the root isn't found, rather than shipping a broken image.
+ARG RDS_REGION=ap-south-1
+RUN cd /tmp \
+ && awk '/BEGIN CERTIFICATE/{n++} {print > ("rds-cert-" n ".pem")}' /etc/ssl/certs/rds-global-bundle.pem \
+ && for f in rds-cert-*.pem; do \
+      if openssl x509 -in "$f" -noout -subject | grep -q "CN = Amazon RDS ${RDS_REGION} Root CA RSA2048 G1,"; then \
+        cp "$f" /etc/ssl/certs/rds-root-ca.pem; \
+      fi; \
+    done \
+ && chmod 644 /etc/ssl/certs/rds-root-ca.pem \
+ && rm -f /tmp/rds-cert-*.pem \
+ && openssl x509 -in /etc/ssl/certs/rds-root-ca.pem -noout -subject
 WORKDIR /app
 COPY --chown=node:node apps/api/scripts/migrate.sh ./scripts/migrate.sh
 COPY --from=builder --chown=node:node /out/package.json ./package.json

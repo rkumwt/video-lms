@@ -17,9 +17,9 @@ function databaseUrl(): string {
   const user = encodeURIComponent(env.DB_USER ?? '');
   const password = encodeURIComponent(env.DB_PASSWORD ?? '');
   const base = `postgresql://${user}:${password}@${env.DB_HOST}:${env.DB_PORT ?? '5432'}/${env.DB_NAME ?? 'postgres'}`;
-  return env.DB_SSL_CA
-    ? `${base}?sslmode=require&sslaccept=strict&sslcert=${encodeURIComponent(env.DB_SSL_CA)}`
-    : base;
+  // Prisma's schema engine reads only the first certificate in `sslcert`, so prefer a single-CA file.
+  const ca = env.PRISMA_SSL_CA ?? env.DB_SSL_CA;
+  return ca ? `${base}?sslmode=require&sslaccept=strict&sslcert=${encodeURIComponent(ca)}` : base;
 }
 
 export default defineConfig({
