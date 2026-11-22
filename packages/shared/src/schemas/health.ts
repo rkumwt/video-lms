@@ -9,3 +9,10 @@ export const healthResponseSchema = z.object({
 });
 
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
+
+export const readinessResponseSchema = z.object({
+  status: z.enum(['ok', 'unavailable']),
+  checks: z.object({ database: z.enum(['ok', 'error']) }),
+});
+
+export type ReadinessResponse = z.infer<typeof readinessResponseSchema>;

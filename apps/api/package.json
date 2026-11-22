@@ -16,6 +16,7 @@
     "clean": "rm -rf dist .turbo coverage"
   },
   "dependencies": {
+    "@vlp/db": "workspace:^",
     "@vlp/shared": "workspace:^",
     "cors": "^2.8.6",
     "express": "^5.3.0",

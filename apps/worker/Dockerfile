@@ -30,6 +30,8 @@ FROM ${NODE_IMAGE} AS runner
 ARG APP_VERSION=dev
 ENV NODE_ENV=production \
     APP_VERSION=${APP_VERSION}
+# Amazon RDS CA bundle so TLS to RDS is verified (DB_SSL_CA on AWS).
+ADD --chmod=644 https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
 WORKDIR /app
 COPY --from=builder --chown=node:node /out/package.json ./package.json
 COPY --from=builder --chown=node:node /out/node_modules ./node_modules

@@ -3,3 +3,4 @@ coverage
 .turbo
 cdk.out
 pnpm-lock.yaml
+**/src/generated

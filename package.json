@@ -20,7 +20,11 @@
     "docker:deps": "docker compose up -d postgres",
     "docker:up": "docker compose --profile app up -d --build",
     "docker:down": "docker compose --profile app --profile aws down",
-    "docker:logs": "docker compose --profile app logs -f"
+    "docker:logs": "docker compose --profile app logs -f",
+    "db:migrate": "pnpm --filter @vlp/db migrate:dev",
+    "db:deploy": "pnpm --filter @vlp/db migrate:deploy",
+    "db:status": "pnpm --filter @vlp/db migrate:status",
+    "db:studio": "pnpm --filter @vlp/db studio"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [

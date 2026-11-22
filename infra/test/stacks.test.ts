@@ -31,6 +31,8 @@ function synth(overrides: Partial<VlpConfig> = {}) {
     foundation: Template.fromStack(stacks.foundation),
     app: Template.fromStack(stacks.appStack),
     cicd: Template.fromStack(stacks.cicd),
+    data: Template.fromStack(stacks.data),
+    migrate: Template.fromStack(stacks.migrate),
   };
 }
 
@@ -182,5 +184,72 @@ describe('CiCdStack', () => {
   it('never grants AdministratorAccess directly', () => {
     const { cicd } = synth();
     expect(JSON.stringify(cicd.toJSON())).not.toContain('AdministratorAccess');
+  });
+});
+
+describe('DataStack', () => {
+  const { data } = synth();
+
+  it('runs a small, private, encrypted, protected PostgreSQL 17', () => {
+    data.hasResource('AWS::RDS::DBInstance', {
+      DeletionPolicy: 'Snapshot',
+      Properties: Match.objectLike({
+        Engine: 'postgres',
+        EngineVersion: Match.stringLikeRegexp('^17'),
+        DBInstanceClass: 'db.t4g.micro',
+        PubliclyAccessible: false,
+        StorageEncrypted: true,
+        DeletionProtection: true,
+        MultiAZ: false,
+      }),
+    });
+  });
+
+  it('keeps credentials in Secrets Manager', () => {
+    data.resourceCountIs('AWS::SecretsManager::Secret', 1);
+  });
+
+  it('has no ingress rules of its own (consumers add them, avoiding stack cycles)', () => {
+    data.resourceCountIs('AWS::EC2::SecurityGroupIngress', 0);
+  });
+});
+
+describe('MigrateStack', () => {
+  const { migrate } = synth({ imageTag: 'abc123' });
+
+  it('runs `prisma migrate deploy` from the api image with DB secrets', () => {
+    migrate.hasResourceProperties('AWS::ECS::TaskDefinition', {
+      Family: 'vlp-migrate',
+      ContainerDefinitions: [
+        Match.objectLike({
+          Command: ['sh', '/app/scripts/migrate.sh'],
+          Secrets: Match.arrayWith([Match.objectLike({ Name: 'DB_PASSWORD' })]),
+        }),
+      ],
+    });
+  });
+
+  it('opens PostgreSQL to the migration task only on 5432', () => {
+    migrate.hasResourceProperties('AWS::EC2::SecurityGroupIngress', {
+      IpProtocol: 'tcp',
+      FromPort: 5432,
+      ToPort: 5432,
+    });
+  });
+});
+
+describe('AppStack database access', () => {
+  it('injects DB credentials as secrets, never as plain environment variables', () => {
+    const { app } = synth({ imageTag: 'abc123' });
+    const taskDefs = app.findResources('AWS::ECS::TaskDefinition');
+    for (const td of Object.values(taskDefs)) {
+      const [container] = (td.Properties as { ContainerDefinitions: Record<string, unknown>[] })
+        .ContainerDefinitions;
+      const envNames = ((container!.Environment ?? []) as { Name: string }[]).map((e) => e.Name);
+      const secretNames = ((container!.Secrets ?? []) as { Name: string }[]).map((e) => e.Name);
+      expect(envNames).not.toContain('DB_PASSWORD');
+      expect(secretNames).toContain('DB_PASSWORD');
+      expect(envNames).toContain('DB_SSL_CA');
+    }
   });
 });

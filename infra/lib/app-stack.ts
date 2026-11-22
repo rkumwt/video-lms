@@ -16,11 +16,13 @@ import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import type * as sns from 'aws-cdk-lib/aws-sns';
 import * as cr from 'aws-cdk-lib/custom-resources';
 import { type Construct } from 'constructs';
 
 import { type VlpConfig } from './config';
+import { allowDbAccess, dbEnvironment, dbSecrets } from './db-access';
 
 export interface AppStackProps extends StackProps {
   config: VlpConfig;
@@ -29,6 +31,8 @@ export interface AppStackProps extends StackProps {
   workerRepo: ecr.IRepository;
   videosBucket: s3.IBucket;
   alertsTopic: sns.ITopic;
+  dbSecurityGroup: ec2.ISecurityGroup;
+  dbSecret: secretsmanager.ISecret;
 }
 
 const API_PORT = 4000;
@@ -186,7 +190,9 @@ export class AppStack extends Stack {
         CORS_ORIGIN: appOrigin,
         AWS_REGION: this.region,
         VIDEOS_BUCKET: props.videosBucket.bucketName,
+        ...dbEnvironment,
       },
+      secrets: dbSecrets(props.dbSecret),
       stopTimeout: Duration.seconds(30),
     });
     props.videosBucket.grantReadWrite(apiTask.taskRole);
@@ -195,6 +201,8 @@ export class AppStack extends Stack {
       vpc,
       description: 'API tasks - inbound from ALB only',
     });
+    allowDbAccess(props.dbSecurityGroup, apiSg, 'API tasks');
+
     const apiService = new ecs.FargateService(this, 'ApiService', {
       cluster,
       serviceName: 'api',
@@ -246,7 +254,9 @@ export class AppStack extends Stack {
         APP_VERSION: imageTag,
         AWS_REGION: this.region,
         VIDEOS_BUCKET: props.videosBucket.bucketName,
+        ...dbEnvironment,
       },
+      secrets: dbSecrets(props.dbSecret),
       stopTimeout: Duration.seconds(30),
     });
     props.videosBucket.grantReadWrite(workerTask.taskRole);
@@ -255,6 +265,8 @@ export class AppStack extends Stack {
       vpc,
       description: 'Worker tasks - no inbound traffic',
     });
+    allowDbAccess(props.dbSecurityGroup, workerSg, 'Worker tasks');
+
     const workerService = new ecs.FargateService(this, 'WorkerService', {
       cluster,
       serviceName: 'worker',

@@ -2,7 +2,7 @@
 
 Record your screen (optionally with camera + mic), save it to local disk or S3, and browse your library.
 
-> **Status:** Phase 4: CI/CD. Every merge to `main` deploys to AWS automatically (see [docs/ci-cd.md](docs/ci-cd.md)).
+> **Status:** Phase 5: PostgreSQL (Prisma + RDS), with migrations run by the deploy pipeline.
 
 ## Repository layout
 
@@ -14,6 +14,7 @@ apps/
 packages/
   config/    Shared ESLint flat configs + tsconfig bases
   shared/    Zod schemas + inferred types shared by web, api and worker
+  db/        Prisma schema, migrations, typed client (see packages/db/README.md)
 infra/       AWS CDK app (Network, Foundation, App stacks)
 scripts/     Deploy helpers (push images, deploy web)
 docs/        Engineering guides (git workflow, CI/CD, ADRs)
@@ -47,11 +48,14 @@ pnpm install
 cp apps/api/.env.example apps/api/.env
 cp apps/worker/.env.example apps/worker/.env
 cp apps/web/.env.example apps/web/.env
+cp packages/db/.env.example packages/db/.env
+pnpm docker:deps          # Postgres
+pnpm db:deploy            # apply migrations
 pnpm dev
 ```
 
 - Web: http://localhost:5173 (shows live API status)
-- API: http://localhost:4000/health
+- API: http://localhost:4000/health (liveness), http://localhost:4000/health/ready (DB check)
 
 ## Scripts (run from the repo root)
 
@@ -155,7 +159,7 @@ pipeline, GitHub/AWS setup and rollback.
 2. ✅ Multi-stage Dockerfiles + docker compose
 3. ✅ AWS CDK stack (VPC, ECR, ECS, ALB, S3, CloudFront)
 4. ✅ GitHub Actions PR checks + auto deploy (OIDC)
-5. Prisma schema, RDS, migrations in pipeline
+5. ✅ Prisma schema, RDS, migrations in pipeline
 6. Web layout + home page
 7. Video upload API (presigned URL / multipart / local)
 8. Record + settings pages

@@ -1,5 +1,6 @@
 import { createApp } from './app';
 import { env } from './config/env';
+import { disconnectDb } from './lib/db';
 import { logger } from './lib/logger';
 
 const app = createApp();
@@ -12,11 +13,10 @@ const server = app.listen(env.PORT, () => {
 function shutdown(signal: string) {
   logger.info({ signal }, 'Shutting down');
   server.close((err) => {
-    if (err) {
-      logger.error({ err }, 'Error during shutdown');
-      process.exit(1);
-    }
-    process.exit(0);
+    if (err) logger.error({ err }, 'Error closing HTTP server');
+    disconnectDb()
+      .catch((dbErr: unknown) => logger.error({ err: dbErr }, 'Error disconnecting database'))
+      .finally(() => process.exit(err ? 1 : 0));
   });
   setTimeout(() => process.exit(1), 10_000).unref();
 }
