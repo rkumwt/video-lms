@@ -43,3 +43,10 @@ which starts a one-off Fargate task that runs `prisma migrate deploy` from the n
 it exits with code 0 does it run `cdk deploy Vlp-App` to roll out the services. Database credentials
 come from Secrets Manager as `DB_*` variables, and TLS is verified against the RDS CA bundle baked into
 the image.
+
+> **TLS gotcha:** Prisma's migration engine reads only the **first** certificate of its `sslcert` file,
+> but Amazon's global bundle holds over 100 CAs. The API image therefore also extracts the single regional
+> root (`Amazon RDS ap-south-1 Root CA RSA2048 G1`) into `/etc/ssl/certs/rds-root-ca.pem`, and
+> `migrate.sh` passes it via `PRISMA_SSL_CA`. RDS sends the intermediate, so verification stays strict.
+> The runtime API (node-postgres) uses the full bundle. For another region, build with
+> `--build-arg RDS_REGION=<region>`.
