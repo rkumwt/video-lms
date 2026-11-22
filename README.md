@@ -2,7 +2,7 @@
 
 Record your screen (optionally with camera + mic), save it to local disk or S3, and browse your library.
 
-> **Status:** Phase 5: PostgreSQL (Prisma + RDS), with migrations run by the deploy pipeline.
+> **Status:** Phase 6: app layout (Home / Record / Settings) and the home page with the video count and a newest-first list.
 
 ## Repository layout
 
@@ -51,6 +51,7 @@ cp apps/web/.env.example apps/web/.env
 cp packages/db/.env.example packages/db/.env
 pnpm docker:deps          # Postgres
 pnpm db:deploy            # apply migrations
+pnpm db:seed              # optional: sample videos
 pnpm dev
 ```
 
@@ -82,6 +83,29 @@ cd apps/web && pnpm dlx shadcn@latest add card
 ```
 
 Check the generated import is `@/lib/utils` (the CLI sometimes writes `"cn"`).
+
+## API
+
+| Method | Path                                  | Notes                                                                   |
+| ------ | ------------------------------------- | ----------------------------------------------------------------------- |
+| GET    | `/health`, `/api/health`              | Liveness (load balancer / browser)                                      |
+| GET    | `/health/ready`, `/api/health/ready`  | Readiness: database reachable (503 if not)                              |
+| GET    | `/api/v1/videos?limit=24&cursor=<id>` | Newest first, keyset pagination. Returns `{ items, total, nextCursor }` |
+
+All responses are validated against Zod schemas in `@vlp/shared` (browser and server share the same types).
+Errors use one envelope: `{ "error": { "code", "message", "details?", "requestId" } }`.
+
+## Web app structure
+
+```
+apps/web/src
+  components/layout/   AppLayout (navbar, skip link, footer), ThemeToggle
+  components/ui/       shadcn/ui primitives (generated: `pnpm dlx shadcn@latest add <name>`)
+  features/videos/     data hooks (TanStack Query) + video components
+  pages/               route components (Home, Record, Settings, 404)
+  stores/              Zustand: UI-only state (theme). Server data stays in TanStack Query.
+  routes.tsx           route table shared by the router and tests
+```
 
 ## Docker
 
@@ -160,7 +184,7 @@ pipeline, GitHub/AWS setup and rollback.
 3. ✅ AWS CDK stack (VPC, ECR, ECS, ALB, S3, CloudFront)
 4. ✅ GitHub Actions PR checks + auto deploy (OIDC)
 5. ✅ Prisma schema, RDS, migrations in pipeline
-6. Web layout + home page
+6. ✅ Web layout + home page
 7. Video upload API (presigned URL / multipart / local)
 8. Record + settings pages
 9. Worker: SQS processing, DLQ, status updates

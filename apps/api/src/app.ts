@@ -9,6 +9,7 @@ import { env } from './config/env';
 import { logger } from './lib/logger';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler';
 import { healthRouter } from './modules/health/health.routes';
+import { videosRouter } from './modules/videos/videos.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -37,7 +38,8 @@ export function createApp(): Express {
   app.use('/health', healthRouter);
   app.use('/api/health', healthRouter);
 
-  // Feature modules mount here, e.g. app.use('/api/v1/videos', videosRouter);
+  // Feature modules (versioned so the contract can evolve without breaking clients).
+  app.use('/api/v1/videos', videosRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

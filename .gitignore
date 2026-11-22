@@ -27,3 +27,6 @@ storage/
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# local editor/agent tooling
+.claude/

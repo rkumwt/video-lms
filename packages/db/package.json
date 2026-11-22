@@ -27,7 +27,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "migrate:status": "prisma migrate status",
     "studio": "prisma studio",
-    "clean": "rm -rf dist .turbo src/generated"
+    "clean": "rm -rf dist .turbo src/generated",
+    "seed": "prisma db seed"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
@@ -41,6 +42,7 @@
     "@vlp/config": "workspace:^",
     "@vlp/shared": "workspace:^",
     "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
     "vitest": "^5.1.1"
   }
 }

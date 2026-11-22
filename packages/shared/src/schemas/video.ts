@@ -40,3 +40,18 @@ export type Settings = z.infer<typeof settingsSchema>;
 
 export const updateSettingsSchema = settingsSchema.omit({ updatedAt: true }).partial();
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
+
+/** GET /api/v1/videos query. Cursor = id of the last item of the previous page. */
+export const listVideosQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(24),
+  cursor: z.uuid().optional(),
+});
+export type ListVideosQuery = z.infer<typeof listVideosQuerySchema>;
+
+export const videoListResponseSchema = z.object({
+  items: z.array(videoSchema),
+  /** Total number of videos (for the "N videos" counter), independent of paging. */
+  total: z.number().int().nonnegative(),
+  nextCursor: z.uuid().nullable(),
+});
+export type VideoListResponse = z.infer<typeof videoListResponseSchema>;
