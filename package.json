@@ -38,7 +38,7 @@
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.4",
-    "@types/node": "^24",
+    "@types/node": "^26",
     "eslint": "^10.15.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.2",
