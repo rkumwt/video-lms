@@ -16,7 +16,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "turbo run clean && rm -rf node_modules .turbo",
-    "prepare": "husky"
+    "prepare": "husky",
+    "docker:deps": "docker compose up -d postgres",
+    "docker:up": "docker compose --profile app up -d --build",
+    "docker:down": "docker compose --profile app --profile aws down",
+    "docker:logs": "docker compose --profile app logs -f"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [

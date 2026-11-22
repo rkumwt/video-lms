@@ -1,0 +1,90 @@
+# Local development stack.
+#   pnpm docker:deps        -> Postgres only (run apps on the host with `pnpm dev`)
+#   pnpm docker:up          -> full stack in containers (api, worker, web) + Postgres
+#   add `--profile aws`     -> LocalStack for S3 + SQS emulation
+name: vlp
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  localstack:
+    profiles: [aws]
+    image: localstack/localstack:4
+    environment:
+      SERVICES: s3,sqs
+      AWS_DEFAULT_REGION: ${AWS_REGION:-ap-south-1}
+      # Newer LocalStack images require a (free) auth token: https://app.localstack.cloud
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-}
+    ports:
+      - '4566:4566'
+    volumes:
+      - ./docker/localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
+
+  api:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-local}
+    image: vlp-api:local
+    environment:
+      <<: *app-env
+      PORT: 4000
+      CORS_ORIGIN: http://localhost:8080
+    ports:
+      - '4000:4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-local}
+    image: vlp-worker:local
+    environment:
+      <<: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: vlp-web:local
+    environment:
+      API_UPSTREAM: http://api:4000
+    ports:
+      - '8080:8080'
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
