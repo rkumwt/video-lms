@@ -22,6 +22,8 @@ for app in api worker; do
   echo "▶ building ${image}"
   docker buildx build \
     --platform linux/arm64 \
+    --provenance=false \
+    --sbom=false \
     --file "apps/${app}/Dockerfile" \
     --build-arg "APP_VERSION=${TAG}" \
     --tag "$image" \

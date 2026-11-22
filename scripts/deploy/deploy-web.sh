@@ -21,6 +21,7 @@ pnpm turbo run build --filter=@vlp/web
 # 1) Fingerprinted assets: cache for a year.
 aws s3 sync apps/web/dist "s3://${BUCKET}" --region "$REGION" --delete \
   --exclude index.html \
+  --exclude "*.map" \
   --cache-control "public,max-age=31536000,immutable"
 
 # 2) index.html last, never cached, so users only see the new HTML once its assets exist.
