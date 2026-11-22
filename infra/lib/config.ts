@@ -28,6 +28,14 @@ export interface VlpConfig {
   logRetention: RetentionDays;
   /** `owner/name` of the GitHub repo allowed to deploy via OIDC. */
   githubRepo: string;
+  /**
+   * Immutable numeric IDs of the repo owner and repo. GitHub's OIDC `sub` claim uses the form
+   * `repo:<owner>@<ownerId>/<repo>@<repoId>:...`, so a deleted-and-recreated repo with the same
+   * name can never assume the role. Find them with:
+   *   curl -s https://api.github.com/repos/<owner>/<repo> | jq '.owner.id, .id'
+   */
+  githubOwnerId: string;
+  githubRepoId: string;
   /** The account already has the GitHub OIDC provider (only one is allowed per account). */
   githubOidcProviderExists: boolean;
 }
@@ -62,6 +70,8 @@ export function loadConfig(app: App): VlpConfig {
     worker: { cpu: 256, memoryMiB: 512, desiredCount: 1, useSpot: true },
     logRetention: RetentionDays.TWO_WEEKS,
     githubRepo: ctx('githubRepo') ?? 'rkumwt/video-lms',
+    githubOwnerId: ctx('githubOwnerId') ?? '21355037',
+    githubRepoId: ctx('githubRepoId') ?? '1467775537',
     githubOidcProviderExists: (ctx('githubOidcProviderExists') ?? 'true') === 'true',
   };
 }

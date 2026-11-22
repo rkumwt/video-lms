@@ -28,6 +28,10 @@ export class CiCdStack extends Stack {
     super(scope, id, props);
     const { config } = props;
     const { githubRepo } = config;
+    const [owner, repo] = githubRepo.split('/');
+    // Matches GitHub's immutable-ID subject format, e.g.
+    // repo:rkumwt@21355037/video-lms@1467775537:ref:refs/heads/main
+    const subject = `repo:${owner}@${config.githubOwnerId}/${repo}@${config.githubRepoId}`;
 
     // There can be only one GitHub OIDC provider per account: import it if it already exists.
     const provider = config.githubOidcProviderExists
@@ -49,8 +53,8 @@ export class CiCdStack extends Stack {
         StringEquals: { [`${GITHUB_OIDC_HOST}:aud`]: 'sts.amazonaws.com' },
         StringLike: {
           [`${GITHUB_OIDC_HOST}:sub`]: [
-            `repo:${githubRepo}:ref:refs/heads/main`,
-            `repo:${githubRepo}:environment:production`,
+            `${subject}:ref:refs/heads/main`,
+            `${subject}:environment:production`,
           ],
         },
       }),
