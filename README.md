@@ -2,7 +2,7 @@
 
 Record your screen (optionally with camera + mic), save it to local disk or S3, and browse your library.
 
-> **Status:** Phase 3 — AWS CDK infrastructure (see [infra/README.md](infra/README.md)).
+> **Status:** Phase 4: CI/CD. Every merge to `main` deploys to AWS automatically (see [docs/ci-cd.md](docs/ci-cd.md)).
 
 ## Repository layout
 
@@ -146,14 +146,15 @@ step-by-step first deploy.
 
 ## Workflow
 
-See [docs/git-workflow.md](docs/git-workflow.md) for branching, PRs, branch protection and the CI/CD plan.
+See [docs/git-workflow.md](docs/git-workflow.md) for branching and PRs, and [docs/ci-cd.md](docs/ci-cd.md) for the
+pipeline, GitHub/AWS setup and rollback.
 
 ## Roadmap
 
 1. ✅ Monorepo, configs, hello-world web, API `/health`
 2. ✅ Multi-stage Dockerfiles + docker compose
 3. ✅ AWS CDK stack (VPC, ECR, ECS, ALB, S3, CloudFront)
-4. GitHub Actions PR checks + auto deploy (OIDC)
+4. ✅ GitHub Actions PR checks + auto deploy (OIDC)
 5. Prisma schema, RDS, migrations in pipeline
 6. Web layout + home page
 7. Video upload API (presigned URL / multipart / local)

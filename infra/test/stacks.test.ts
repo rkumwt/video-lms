@@ -15,6 +15,8 @@ const baseConfig: VlpConfig = {
   api: { cpu: 256, memoryMiB: 512, desiredCount: 1 },
   worker: { cpu: 256, memoryMiB: 512, desiredCount: 1, useSpot: true },
   logRetention: RetentionDays.TWO_WEEKS,
+  githubRepo: 'acme/video-lms',
+  githubOidcProviderExists: true,
 };
 
 function synth(overrides: Partial<VlpConfig> = {}) {
@@ -26,6 +28,7 @@ function synth(overrides: Partial<VlpConfig> = {}) {
     network: Template.fromStack(stacks.network),
     foundation: Template.fromStack(stacks.foundation),
     app: Template.fromStack(stacks.appStack),
+    cicd: Template.fromStack(stacks.cicd),
   };
 }
 
@@ -141,5 +144,41 @@ describe('AppStack', () => {
         ],
       }),
     });
+  });
+});
+
+describe('CiCdStack', () => {
+  it('imports the existing GitHub OIDC provider instead of creating a second one', () => {
+    const { cicd } = synth();
+    cicd.resourceCountIs('Custom::AWSCDKOpenIdConnectProvider', 0);
+    cicd.resourceCountIs('AWS::IAM::OIDCProvider', 0);
+  });
+
+  it('only trusts this repo on main or the production environment', () => {
+    const { cicd } = synth();
+    cicd.hasResourceProperties('AWS::IAM::Role', {
+      RoleName: 'vlp-github-deploy',
+      AssumeRolePolicyDocument: {
+        Statement: [
+          Match.objectLike({
+            Action: 'sts:AssumeRoleWithWebIdentity',
+            Condition: {
+              StringEquals: { 'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com' },
+              StringLike: {
+                'token.actions.githubusercontent.com:sub': [
+                  'repo:acme/video-lms:ref:refs/heads/main',
+                  'repo:acme/video-lms:environment:production',
+                ],
+              },
+            },
+          }),
+        ],
+      },
+    });
+  });
+
+  it('never grants AdministratorAccess directly', () => {
+    const { cicd } = synth();
+    expect(JSON.stringify(cicd.toJSON())).not.toContain('AdministratorAccess');
   });
 });

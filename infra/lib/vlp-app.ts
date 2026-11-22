@@ -2,6 +2,7 @@ import { type App, Tags, Validations } from 'aws-cdk-lib';
 import { AwsSolutionsChecks } from 'cdk-nag';
 
 import { AppStack } from './app-stack';
+import { CiCdStack } from './cicd-stack';
 import { type VlpConfig } from './config';
 import { FoundationStack } from './foundation-stack';
 import { NetworkStack } from './network-stack';
@@ -31,6 +32,14 @@ export function buildVlpApp(app: App, config: VlpConfig) {
     alertsTopic: foundation.alertsTopic,
   });
 
+  // Deployed manually by an admin, never by the pipeline itself.
+  const cicd = new CiCdStack(app, 'Vlp-CiCd', {
+    env,
+    config,
+    apiRepo: foundation.apiRepo,
+    workerRepo: foundation.workerRepo,
+  });
+
   // Cost allocation + ownership tags on every resource.
   Tags.of(app).add('Project', 'learning-video-platform');
   Tags.of(app).add('ManagedBy', 'cdk');
@@ -38,5 +47,5 @@ export function buildVlpApp(app: App, config: VlpConfig) {
   // Security/best-practice checks at synth time; violations fail `cdk synth`.
   Validations.of(app).addPlugins(new AwsSolutionsChecks(app, { verbose: true }));
 
-  return { network, foundation, appStack };
+  return { network, foundation, appStack, cicd };
 }
