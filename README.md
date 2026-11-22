@@ -2,7 +2,7 @@
 
 Record your screen (optionally with camera + mic), save it to local disk or S3, and browse your library.
 
-> **Status:** Phase 2 — multi-stage Dockerfiles + docker compose.
+> **Status:** Phase 3 — AWS CDK infrastructure (see [infra/README.md](infra/README.md)).
 
 ## Repository layout
 
@@ -14,6 +14,8 @@ apps/
 packages/
   config/    Shared ESLint flat configs + tsconfig bases
   shared/    Zod schemas + inferred types shared by web, api and worker
+infra/       AWS CDK app (Network, Foundation, App stacks)
+scripts/     Deploy helpers (push images, deploy web)
 docs/        Engineering guides (git workflow, CI/CD, ADRs)
 ```
 
@@ -137,6 +139,11 @@ Every app ships a `.env.example`. Real `.env` files are git-ignored. On AWS, val
 ECS task definitions and **Secrets Manager** (Phase 3+). Only `VITE_*` vars reach the browser — never
 put secrets there.
 
+## AWS deployment
+
+See [infra/README.md](infra/README.md) for the architecture, a cost breakdown (⏱ = billed per hour) and the
+step-by-step first deploy.
+
 ## Workflow
 
 See [docs/git-workflow.md](docs/git-workflow.md) for branching, PRs, branch protection and the CI/CD plan.
@@ -145,7 +152,7 @@ See [docs/git-workflow.md](docs/git-workflow.md) for branching, PRs, branch prot
 
 1. ✅ Monorepo, configs, hello-world web, API `/health`
 2. ✅ Multi-stage Dockerfiles + docker compose
-3. AWS CDK stack (VPC, ECR, ECS, ALB, S3, CloudFront)
+3. ✅ AWS CDK stack (VPC, ECR, ECS, ALB, S3, CloudFront)
 4. GitHub Actions PR checks + auto deploy (OIDC)
 5. Prisma schema, RDS, migrations in pipeline
 6. Web layout + home page
