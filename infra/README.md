@@ -127,6 +127,12 @@ aws ecs execute-command --cluster vlp --task <id> --container api --interactive 
 The first real synth writes `infra/cdk.context.json` (AZ lookups). **Commit it** so synths are
 deterministic.
 
+## Direct uploads (S3 CORS)
+
+The videos bucket allows `PUT/GET/HEAD` from `config.webOrigins` (default: the CloudFront AppUrl and
+`http://localhost:5173`) and exposes `ETag` for multipart uploads. For a **new environment**, deploy once,
+then add its `AppUrl` with `-c webOrigins=https://<id>.cloudfront.net,http://localhost:5173`.
+
 ## Database
 
 - Connect for debugging (no public access, use ECS Exec into an API task):
@@ -153,6 +159,5 @@ pnpm --filter @vlp/infra cdk destroy Vlp-Foundation   # bucket stays; empty/dele
 | -------------------------------------------- | ----------------------------------- |
 | GitHub OIDC deploy role                      | 4                                   |
 | RDS PostgreSQL + Secrets Manager credentials | 5                                   |
-| Videos bucket CORS for presigned uploads     | 7                                   |
 | SQS queue + DLQ + DLQ alarm                  | 9                                   |
 | Custom domain + ACM, WAF, access logs        | Before real users (cost trade-offs) |

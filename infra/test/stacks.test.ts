@@ -19,6 +19,7 @@ const baseConfig: VlpConfig = {
   githubOwnerId: '111',
   githubRepoId: '222',
   githubOidcProviderExists: true,
+  webOrigins: ['https://app.example.com'],
 };
 
 function synth(overrides: Partial<VlpConfig> = {}) {
@@ -251,5 +252,34 @@ describe('AppStack database access', () => {
       expect(secretNames).toContain('DB_PASSWORD');
       expect(envNames).toContain('DB_SSL_CA');
     }
+  });
+});
+
+describe('Direct-to-S3 uploads', () => {
+  it('allows browser PUT/GET from the app origin and exposes ETag', () => {
+    const { foundation } = synth();
+    foundation.hasResourceProperties('AWS::S3::Bucket', {
+      CorsConfiguration: {
+        CorsRules: [
+          Match.objectLike({
+            AllowedOrigins: ['https://app.example.com'],
+            AllowedMethods: Match.arrayWith(['PUT', 'GET']),
+            ExposedHeaders: ['ETag'],
+          }),
+        ],
+      },
+    });
+  });
+
+  it('disables local-disk storage for the API on Fargate', () => {
+    const { app } = synth({ imageTag: 'abc123' });
+    app.hasResourceProperties('AWS::ECS::TaskDefinition', {
+      ContainerDefinitions: [
+        Match.objectLike({
+          Name: 'api',
+          Environment: Match.arrayWith([{ Name: 'STORAGE_LOCAL_ENABLED', Value: 'false' }]),
+        }),
+      ],
+    });
   });
 });

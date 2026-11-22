@@ -30,3 +30,4 @@ storage/
 
 # local editor/agent tooling
 .claude/
+.tmp/
