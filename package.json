@@ -24,7 +24,8 @@
     "db:migrate": "pnpm --filter @vlp/db migrate:dev",
     "db:deploy": "pnpm --filter @vlp/db migrate:deploy",
     "db:status": "pnpm --filter @vlp/db migrate:status",
-    "db:studio": "pnpm --filter @vlp/db studio"
+    "db:studio": "pnpm --filter @vlp/db studio",
+    "db:seed": "pnpm --filter @vlp/db seed"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [

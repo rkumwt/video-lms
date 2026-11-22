@@ -1,4 +1,4 @@
 {
   "extends": "@vlp/config/tsconfig/node.json",
-  "include": ["src", "*.config.ts"]
+  "include": ["src", "prisma", "*.config.ts"]
 }
