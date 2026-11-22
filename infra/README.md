@@ -12,12 +12,14 @@ Three stacks, deployed to **ap-south-1 (Mumbai)** by default. You can change it 
  Vlp-Network    (free):   VPC 10.20.0.0/16 · 2 AZ · public + isolated subnets · S3 gateway endpoint
 ```
 
-| Stack            | Contents                                                                                                                           | Delete safely?                                                                            |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `Vlp-Network`    | VPC, subnets, S3 gateway endpoint                                                                                                  | Yes, after `Vlp-App`                                                                      |
-| `Vlp-Foundation` | ECR repos, videos bucket (retained), SNS alerts topic, monthly budget. **Termination protection on.**                              | Bucket is kept on purpose                                                                 |
-| `Vlp-CiCd`       | GitHub OIDC deploy role `vlp-github-deploy` (imports the account's existing OIDC provider). Deployed by an admin only, never by CI | Yes (CI stops working)                                                                    |
-| `Vlp-App`        | ECS cluster + api/worker services, ALB, web bucket, CloudFront, alarms, log groups                                                 | **Yes. Destroy it when you are not using the app, so you stop paying for it by the hour** |
+| Stack            | Contents                                                                                                                                                                        | Delete safely?                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `Vlp-Network`    | VPC, subnets, S3 gateway endpoint                                                                                                                                               | Yes, after `Vlp-App`                                                                      |
+| `Vlp-Foundation` | ECR repos, videos bucket (retained), SNS alerts topic, monthly budget. **Termination protection on.**                                                                           | Bucket is kept on purpose                                                                 |
+| `Vlp-Data`       | RDS PostgreSQL 17 `db.t4g.micro`, isolated subnets, encrypted, 7-day backups, deletion protection + **termination protection**, credentials in Secrets Manager (`vlp/db/admin`) | ⏱ costs per hour; snapshot on delete                                                      |
+| `Vlp-Migrate`    | `vlp-jobs` cluster + `vlp-migrate` task definition (API image running `prisma migrate deploy`), used by the pipeline                                                            | Yes                                                                                       |
+| `Vlp-CiCd`       | GitHub OIDC deploy role `vlp-github-deploy` (imports the account's existing OIDC provider). Deployed by an admin only, never by CI                                              | Yes (CI stops working)                                                                    |
+| `Vlp-App`        | ECS cluster + api/worker services, ALB, web bucket, CloudFront, alarms, log groups                                                                                              | **Yes. Destroy it when you are not using the app, so you stop paying for it by the hour** |
 
 ## Key decisions
 
@@ -124,6 +126,16 @@ aws ecs execute-command --cluster vlp --task <id> --container api --interactive 
 
 The first real synth writes `infra/cdk.context.json` (AZ lookups). **Commit it** so synths are
 deterministic.
+
+## Database
+
+- Connect for debugging (no public access, use ECS Exec into an API task):
+  ```bash
+  aws ecs execute-command --cluster vlp --task <id> --container api --interactive --command sh
+  ```
+- Pause to save credits: `aws rds stop-db-instance --db-instance-identifier <id>`. AWS restarts it
+  automatically after 7 days.
+- Credentials: Secrets Manager → `vlp/db/admin`. Tasks receive them as `DB_*` env vars at start.
 
 ## Teardown
 

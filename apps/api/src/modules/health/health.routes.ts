@@ -5,3 +5,4 @@ import { healthController } from './health.controller';
 export const healthRouter = Router();
 
 healthRouter.get('/', healthController.get);
+healthRouter.get('/ready', healthController.ready);

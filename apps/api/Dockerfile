@@ -38,7 +38,14 @@ ARG APP_VERSION=dev
 ENV NODE_ENV=production \
     PORT=4000 \
     APP_VERSION=${APP_VERSION}
+# openssl: required by Prisma's schema engine (migrations). ca-certificates: outbound TLS.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends openssl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+# Amazon RDS CA bundle so TLS to RDS is *verified* (enabled on AWS via DB_SSL_CA).
+ADD --chmod=644 https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
 WORKDIR /app
+COPY --chown=node:node apps/api/scripts/migrate.sh ./scripts/migrate.sh
 COPY --from=builder --chown=node:node /out/package.json ./package.json
 COPY --from=builder --chown=node:node /out/node_modules ./node_modules
 COPY --from=builder --chown=node:node /out/dist ./dist

@@ -112,13 +112,42 @@ export class CiCdStack extends Stack {
       }),
     );
 
+    // 7) Run the one-off migration task (Vlp-Migrate) and read its logs.
+    role.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'RunMigrationTask',
+        actions: ['ecs:RunTask'],
+        resources: [
+          `arn:${this.partition}:ecs:${this.region}:${this.account}:task-definition/${config.appName}-migrate:*`,
+        ],
+      }),
+    );
+    role.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'PassMigrationTaskRoles',
+        actions: ['iam:PassRole'],
+        resources: [`arn:${this.partition}:iam::${this.account}:role/Vlp-Migrate-*`],
+        conditions: { StringEquals: { 'iam:PassedToService': 'ecs-tasks.amazonaws.com' } },
+      }),
+    );
+    role.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'ReadMigrationLogs',
+        actions: ['logs:GetLogEvents', 'logs:FilterLogEvents'],
+        resources: [
+          `arn:${this.partition}:logs:${this.region}:${this.account}:log-group:/ecs/${config.appName}/migrate:*`,
+        ],
+      }),
+    );
+
     new CfnOutput(this, 'DeployRoleArn', { value: role.roleArn });
 
     Validations.of(this).acknowledge({
       id: 'AwsSolutions-IAM5',
       reason:
         'Wildcards are scoped by prefix: CDK bootstrap roles (cdk-hnb659fds-*), Vlp-* stacks, ' +
-        'the generated web bucket name, CloudFront distributions in this account, and ' +
+        'the generated web bucket name, CloudFront distributions in this account, the migrate ' +
+        'task family/roles/log group, and ' +
         'ecr:GetAuthorizationToken / ECS Describe* which do not support resource-level permissions.',
     });
   }

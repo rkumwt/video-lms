@@ -1,0 +1,74 @@
+// Learning Video Platform — database schema.
+// Change it with `pnpm --filter @vlp/db migrate:dev --name <change>`; never edit applied migrations.
+//
+// Extensibility (Stage 2+): courses, topics, tags and AI artefacts (transcripts, summaries) are added
+// as NEW tables with nullable foreign keys / join tables pointing at Video. Nothing here needs to be
+// rewritten, so each addition is a plain additive migration (expand → contract).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RecordingType {
+  SCREEN
+  SCREEN_CAMERA
+}
+
+enum StorageType {
+  LOCAL
+  S3
+}
+
+enum VideoStatus {
+  UPLOADING
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum RecordingQuality {
+  LOW // 720p
+  MEDIUM // 1080p
+  HIGH // 1440p
+}
+
+model Video {
+  id            String        @id @default(uuid(7)) @db.Uuid
+  title         String        @db.VarChar(200)
+  description   String?       @db.Text
+  recordingType RecordingType
+  storageType   StorageType
+  /// Object key (S3) or relative path (LOCAL) of the video file.
+  storageKey    String        @db.VarChar(1024)
+  thumbnailKey  String?       @db.VarChar(1024)
+  durationSec   Int           @default(0)
+  /// BigInt: recordings can exceed 2 GB (Int max).
+  sizeBytes     BigInt        @default(0)
+  mimeType      String        @db.VarChar(100)
+  status        VideoStatus   @default(UPLOADING)
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @db.Timestamptz(3)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([status])
+  @@map("videos")
+}
+
+/// Application settings. Exactly one row (id = 1), enforced by a CHECK constraint in the migration.
+model Setting {
+  id                   Int              @id @default(1)
+  storageTarget        StorageType      @default(S3)
+  defaultRecordingMode RecordingType    @default(SCREEN)
+  quality              RecordingQuality @default(MEDIUM)
+  micEnabled           Boolean          @default(true)
+  updatedAt            DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@map("settings")
+}

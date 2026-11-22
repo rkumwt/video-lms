@@ -12,8 +12,9 @@ merge to main ──► Deploy (.github/workflows/deploy.yml)   concurrency: dep
                  1. CI            (same workflow, re-run on the merge commit)
                  2. Images ×2     OIDC → ECR push  vlp/{api,worker}:<sha12>  (skipped if tag exists)
                  3. Deploy        environment: production
-                    ├─ DB migrations        (Phase 5: one-off ECS task before services roll)
-                    ├─ cdk deploy Network, Foundation, App  → ECS rolling update + circuit breaker
+                    ├─ cdk deploy Network, Foundation, Data (RDS), Migrate (task def, new image)
+                    ├─ run-migrations.sh: one-off Fargate task `prisma migrate deploy` (must exit 0)
+                    ├─ cdk deploy App        → ECS rolling update + circuit breaker
                     ├─ web: s3 sync (immutable assets, index.html no-cache) + CloudFront invalidation
                     └─ smoke test: /api/health must report the new <sha12>
 ```

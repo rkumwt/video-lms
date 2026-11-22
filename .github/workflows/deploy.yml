@@ -77,7 +77,7 @@ jobs:
     name: Deploy to production
     needs: images
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     environment:
       name: production
       url: ${{ steps.smoke.outputs.app_url }}
@@ -108,18 +108,27 @@ jobs:
       - name: Set image tag
         run: echo "VLP_IMAGE_TAG=${GITHUB_SHA::12}" >> "$GITHUB_ENV"
 
-      - name: Database migrations
-        # Phase 5: run `prisma migrate deploy` as a one-off ECS task with the new image,
-        # BEFORE services roll, so new code never runs against an old schema.
-        run: echo "No database yet (added in Phase 5)"
+      # Order matters: data + migration task first, run migrations, THEN roll the services,
+      # so new code never runs against an old schema (migrations must be backward compatible).
+      - name: CDK deploy foundations, database and migration task
+        working-directory: infra
+        run: >
+          pnpm exec cdk deploy Vlp-Network Vlp-Foundation Vlp-Data Vlp-Migrate
+          --exclusively
+          --require-approval never
+          --concurrency 2
+          --progress events
 
-      - name: CDK deploy (rolling ECS update, circuit breaker auto-rollback)
+      - name: Database migrations (one-off Fargate task, prisma migrate deploy)
+        run: scripts/deploy/run-migrations.sh
+
+      - name: CDK deploy app (rolling ECS update, circuit breaker auto-rollback)
         working-directory: infra
         # Vlp-CiCd is intentionally excluded: the pipeline must not manage its own permissions.
         run: >
-          pnpm exec cdk deploy Vlp-Network Vlp-Foundation Vlp-App
+          pnpm exec cdk deploy Vlp-App
+          --exclusively
           --require-approval never
-          --concurrency 2
           --progress events
 
       - name: Deploy web (S3 sync + CloudFront invalidation)
