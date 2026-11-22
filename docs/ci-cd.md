@@ -62,6 +62,19 @@ git push -u origin feat/5-db
 # open PR with a Conventional Commit title → CI → Squash and merge → Deploy runs automatically
 ```
 
+## Troubleshooting
+
+**`Could not assume role with OIDC: Not authorized to perform sts:AssumeRoleWithWebIdentity`**:
+the token's `sub` claim doesn't match the trust policy. Look up the exact subject GitHub sent:
+
+```bash
+aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=AssumeRoleWithWebIdentity \
+  --max-results 5 --query 'Events[].CloudTrailEvent' --output text | jq -r '.userIdentity.userName, .errorCode'
+```
+
+GitHub now uses `repo:<owner>@<ownerId>/<repo>@<repoId>:...`. The IDs are set in `infra/lib/config.ts`
+(`githubOwnerId`, `githubRepoId`). Fix them, then run `cdk deploy Vlp-CiCd --exclusively` with admin credentials.
+
 ## Rollback
 
 - **Automatic:** if new tasks fail the load balancer health checks, the ECS circuit breaker rolls back

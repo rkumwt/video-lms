@@ -16,6 +16,8 @@ const baseConfig: VlpConfig = {
   worker: { cpu: 256, memoryMiB: 512, desiredCount: 1, useSpot: true },
   logRetention: RetentionDays.TWO_WEEKS,
   githubRepo: 'acme/video-lms',
+  githubOwnerId: '111',
+  githubRepoId: '222',
   githubOidcProviderExists: true,
 };
 
@@ -154,7 +156,7 @@ describe('CiCdStack', () => {
     cicd.resourceCountIs('AWS::IAM::OIDCProvider', 0);
   });
 
-  it('only trusts this repo on main or the production environment', () => {
+  it('only trusts this repo (by immutable IDs) on main or the production environment', () => {
     const { cicd } = synth();
     cicd.hasResourceProperties('AWS::IAM::Role', {
       RoleName: 'vlp-github-deploy',
@@ -166,8 +168,8 @@ describe('CiCdStack', () => {
               StringEquals: { 'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com' },
               StringLike: {
                 'token.actions.githubusercontent.com:sub': [
-                  'repo:acme/video-lms:ref:refs/heads/main',
-                  'repo:acme/video-lms:environment:production',
+                  'repo:acme@111/video-lms@222:ref:refs/heads/main',
+                  'repo:acme@111/video-lms@222:environment:production',
                 ],
               },
             },
