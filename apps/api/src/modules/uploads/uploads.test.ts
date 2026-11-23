@@ -8,7 +8,17 @@ const settings = { id: 1, storageTarget: 'LOCAL' };
 
 vi.mock('../../lib/db', () => ({
   getDb: () => ({
-    setting: { findUnique: () => Promise.resolve(settings) },
+    setting: {
+      findUnique: () => Promise.resolve(settings),
+      upsert: () =>
+        Promise.resolve({
+          ...settings,
+          defaultRecordingMode: 'SCREEN',
+          quality: 'MEDIUM',
+          micEnabled: true,
+          updatedAt: new Date(),
+        }),
+    },
     video: {
       findUnique: ({ where }: { where: { id: string } }) =>
         Promise.resolve(rows.get(where.id) ?? null),

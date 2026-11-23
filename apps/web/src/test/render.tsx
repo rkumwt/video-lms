@@ -20,14 +20,14 @@ export function renderApp(path = '/') {
   };
 }
 
-type Handler = (url: URL) => { status?: number; body: unknown } | undefined;
+type Handler = (url: URL, init?: RequestInit) => { status?: number; body: unknown } | undefined;
 
 /** Stubs global fetch with a tiny URL router; unmatched URLs return 404. */
 export function mockFetch(handler: Handler) {
-  const fn = vi.fn((input: RequestInfo | URL) => {
+  const fn = vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
     const raw = input instanceof Request ? input.url : input.toString();
     const url = new URL(raw, 'http://localhost');
-    const res = handler(url) ?? {
+    const res = handler(url, _init) ?? {
       status: 404,
       body: { error: { code: 'NOT_FOUND', message: 'x' } },
     };
