@@ -6,13 +6,18 @@ small pull request, and merging to `main` deploys automatically.
 
 ## Branches
 
-| Branch                       | Purpose                                                                                |
-| ---------------------------- | -------------------------------------------------------------------------------------- |
-| `main`                       | Protected. Always green, always deployable. Push to `main` = deploy to AWS (Phase 4+). |
-| `feat/<n>-<slug>`            | One branch per phase/feature, numbered, e.g. `feat/1-init-monorepo`, `feat/2-docker`.  |
-| `fix/<slug>`, `chore/<slug>` | Bug fixes / maintenance outside the phase plan.                                        |
+| Branch                              | Purpose                                                                                |
+| ----------------------------------- | -------------------------------------------------------------------------------------- |
+| `main`                              | Protected. Always green, always deployable. Push to `main` = deploy to AWS (Phase 4+). |
+| `feat/<n>-<slug>`                   | One branch per phase/feature, numbered, e.g. `feat/1-init-monorepo`, `feat/2-docker`.  |
+| `fix/<n>-<slug>`, `docs/<n>-<slug>` | Fixes / docs found during phase `<n>`, e.g. `fix/7-worker-image`.                      |
 
 Branches live for days, not weeks. Rebase on `main` before merging to keep history linear.
+
+**Merged branches are kept, not deleted.** Each `feat/<n>-…` branch is a permanent record of what that phase
+added. Review one with its PR's _Files changed_ tab, or compare two phases, e.g.
+`https://github.com/rkumwt/video-lms/compare/feat/6-web-home...feat/7-api-upload`.
+`main` stays the single source of truth: never commit to an old branch after it's merged; start a new one.
 
 ## Day-to-day loop
 
@@ -22,7 +27,7 @@ git switch -c feat/2-docker
 # ...work, commit with Conventional Commits...
 git push -u origin feat/2-docker
 gh pr create --fill --base main
-# CI runs → review → "Squash and merge" → branch auto-deleted → main deploys
+# CI runs → review → "Squash and merge" → main deploys (the branch is kept for reference)
 ```
 
 **Squash and merge** gives one Conventional Commit per PR on `main`, which keeps history readable and
@@ -30,8 +35,9 @@ lets tools (release-please / semantic-release) generate changelogs later.
 
 ## One-time GitHub setup
 
-1. **Settings → General → Pull Requests**: enable only _Allow squash merging_, tick
-   _Always suggest updating PR branches_ and _Automatically delete head branches_.
+1. **Settings → General → Pull Requests**: enable only _Allow squash merging_ and tick
+   _Always suggest updating PR branches_. Leave _Automatically delete head branches_ **off**, so
+   phase branches are kept.
 2. **Settings → Rules → Rulesets → New branch ruleset** targeting `main`:
    - Restrict deletions, block force pushes
    - Require a pull request before merging (1 approval if you have a reviewer; 0 if solo)
@@ -73,3 +79,14 @@ Key industry practices used:
 
 Only non-secret config (AWS account id, region, role ARN) goes into GitHub **repository variables**.
 Runtime secrets (DB password etc.) live in AWS Secrets Manager and are injected into ECS tasks.
+
+## Restoring a deleted branch
+
+GitHub keeps every PR's final commit as `refs/pull/<number>/head`, even after its branch is deleted:
+
+```bash
+git fetch origin refs/pull/12/head
+git push origin FETCH_HEAD:refs/heads/feat/7-api-upload
+```
+
+You can also use the **Restore branch** button on the merged PR page.
