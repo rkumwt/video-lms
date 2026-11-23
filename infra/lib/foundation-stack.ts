@@ -72,6 +72,16 @@ export class FoundationStack extends Stack {
           ],
         },
       ],
+      // Browsers upload straight to S3 with presigned URLs (single PUT or multipart parts).
+      cors: [
+        {
+          allowedOrigins: config.webOrigins,
+          allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET, s3.HttpMethods.HEAD],
+          allowedHeaders: ['Content-Type', 'Content-Length'],
+          exposedHeaders: ['ETag'], // needed to complete multipart uploads
+          maxAge: 3600,
+        },
+      ],
       // User data: never deleted by `cdk destroy`.
       removalPolicy: RemovalPolicy.RETAIN,
     });

@@ -18,7 +18,8 @@ cdk.out/
 !.env.example
 
 # uploads (local storage target)
-storage/
+/storage/
+apps/*/storage/
 
 # logs / os / editors
 *.log
@@ -30,3 +31,4 @@ storage/
 
 # local editor/agent tooling
 .claude/
+.tmp/

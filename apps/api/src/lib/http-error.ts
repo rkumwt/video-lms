@@ -16,4 +16,8 @@ export class HttpError extends Error {
   static notFound(message = 'Resource not found') {
     return new HttpError(404, 'NOT_FOUND', message);
   }
+
+  static conflict(message: string) {
+    return new HttpError(409, 'CONFLICT', message);
+  }
 }

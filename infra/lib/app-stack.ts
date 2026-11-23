@@ -190,6 +190,8 @@ export class AppStack extends Stack {
         CORS_ORIGIN: appOrigin,
         AWS_REGION: this.region,
         VIDEOS_BUCKET: props.videosBucket.bucketName,
+        // Fargate disks are ephemeral: only S3 is allowed in AWS.
+        STORAGE_LOCAL_ENABLED: 'false',
         ...dbEnvironment,
       },
       secrets: dbSecrets(props.dbSecret),

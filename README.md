@@ -2,7 +2,7 @@
 
 Record your screen (optionally with camera + mic), save it to local disk or S3, and browse your library.
 
-> **Status:** Phase 6: app layout (Home / Record / Settings) and the home page with the video count and a newest-first list.
+> **Status:** Phase 7: video upload API (presigned S3 single/multipart, local-disk option, playback URLs).
 
 ## Repository layout
 
@@ -91,9 +91,38 @@ Check the generated import is `@/lib/utils` (the CLI sometimes writes `"cn"`).
 | GET    | `/health`, `/api/health`              | Liveness (load balancer / browser)                                      |
 | GET    | `/health/ready`, `/api/health/ready`  | Readiness: database reachable (503 if not)                              |
 | GET    | `/api/v1/videos?limit=24&cursor=<id>` | Newest first, keyset pagination. Returns `{ items, total, nextCursor }` |
+| GET    | `/api/v1/videos/:id`                  | `{ video, playbackUrl }` (presigned S3 GET, or the local stream URL)    |
+| GET    | `/api/v1/videos/:id/stream`           | LOCAL storage only. Supports HTTP Range (seeking)                       |
+| POST   | `/api/v1/uploads`                     | Register a video (`UPLOADING`) and get upload instructions              |
+| PUT    | `/api/v1/uploads/:id/file`            | LOCAL only: raw body streamed to disk (size-capped)                     |
+| POST   | `/api/v1/uploads/:id/complete`        | Verify bytes, mark `UPLOADED`, emit `video.uploaded`. Idempotent        |
+| DELETE | `/api/v1/uploads/:id?uploadId=`       | Cancel an in-progress upload                                            |
 
 All responses are validated against Zod schemas in `@vlp/shared` (browser and server share the same types).
 Errors use one envelope: `{ "error": { "code", "message", "details?", "requestId" } }`.
+
+### Upload flow
+
+```
+browser                      API                                  S3 / disk
+  │ POST /uploads {title, size, mime…} ─►  create Video(UPLOADING)
+  │ ◄─ { video, upload: s3-single | s3-multipart | local }
+  │ PUT bytes ───────────────────────────────────────────────────►  presigned URL(s) / API (LOCAL)
+  │ POST /uploads/:id/complete {uploadId?, parts?[]} ─►  CompleteMultipart + HeadObject size check
+  │ ◄─ video(UPLOADED) ───────── events.videoUploaded → SQS → worker (Phase 9)
+```
+
+- **Direct-to-S3 with presigned URLs**: video bytes never pass through the API, so there are no
+  Fargate bandwidth or timeout limits. The single PUT signs `Content-Length`, so S3 rejects a body of any
+  other size.
+- **Multipart above 64 MiB** (16 MiB parts, grown automatically to stay under 10,000 parts): parallel and
+  retryable per part. Abandoned uploads are cleaned up by the bucket lifecycle rule after 1 day.
+- **The server verifies before marking UPLOADED** (`HeadObject` size equals the declared size), so a client
+  can't mark a video uploaded without sending the bytes.
+- SDK v3 presigned URLs are created with `requestChecksumCalculation: 'WHEN_REQUIRED'`. The default adds
+  CRC32 parameters that browsers can't satisfy.
+- **LOCAL storage** is for development and single-host installs. It's off on AWS
+  (`STORAGE_LOCAL_ENABLED=false`) because Fargate disks are ephemeral.
 
 ## Web app structure
 
@@ -185,6 +214,6 @@ pipeline, GitHub/AWS setup and rollback.
 4. ✅ GitHub Actions PR checks + auto deploy (OIDC)
 5. ✅ Prisma schema, RDS, migrations in pipeline
 6. ✅ Web layout + home page
-7. Video upload API (presigned URL / multipart / local)
+7. ✅ Video upload API (presigned URL / multipart / local)
 8. Record + settings pages
 9. Worker: SQS processing, DLQ, status updates

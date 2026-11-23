@@ -38,6 +38,11 @@ export interface VlpConfig {
   githubRepoId: string;
   /** The account already has the GitHub OIDC provider (only one is allowed per account). */
   githubOidcProviderExists: boolean;
+  /**
+   * Browser origins allowed to upload directly to the videos bucket (S3 CORS). Includes the
+   * CloudFront URL of the app; for a brand-new environment, deploy once, then add its AppUrl.
+   */
+  webOrigins: string[];
 }
 
 /**
@@ -73,5 +78,9 @@ export function loadConfig(app: App): VlpConfig {
     githubOwnerId: ctx('githubOwnerId') ?? '21355037',
     githubRepoId: ctx('githubRepoId') ?? '1467775537',
     githubOidcProviderExists: (ctx('githubOidcProviderExists') ?? 'true') === 'true',
+    webOrigins: (ctx('webOrigins') ?? 'https://d3lrxesb3g5o1m.cloudfront.net,http://localhost:5173')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
   };
 }
