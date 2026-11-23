@@ -70,5 +70,20 @@ jobs:
           file: apps/${{ matrix.app }}/Dockerfile
           platforms: linux/arm64
           push: false
+          load: true # keep the image locally for the smoke test below
+          tags: vlp-${{ matrix.app }}:ci
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+
+      # Catch images that build but can't start (missing files, permissions, bad entrypoint).
+      - name: Smoke test container
+        run: |
+          if [ "${{ matrix.app }}" = "web" ]; then
+            docker run --rm --entrypoint nginx vlp-web:ci -t
+          else
+            # Runs as the image's non-root user, loads OpenSSL config and the app's dependencies.
+            docker run --rm --entrypoint node vlp-${{ matrix.app }}:ci \
+              -e "require('node:crypto').randomUUID(); console.log('node ok as', process.getuid())"
+            docker run --rm --entrypoint sh vlp-${{ matrix.app }}:ci \
+              -c 'test -r /etc/ssl/certs/rds-global-bundle.pem && echo "rds ca bundle readable"'
+          fi

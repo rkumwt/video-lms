@@ -31,6 +31,9 @@ ARG APP_VERSION=dev
 ENV NODE_ENV=production \
     APP_VERSION=${APP_VERSION}
 # Amazon RDS CA bundle so TLS to RDS is verified (DB_SSL_CA on AWS).
+# Create /etc/ssl first: if ADD creates it, it is root-only (0700) and Node, running as `node`,
+# then crashes at startup reading /etc/ssl/openssl.cnf (exit 13).
+RUN mkdir -p /etc/ssl/certs && chmod 755 /etc/ssl /etc/ssl/certs
 ADD --chmod=644 https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
 WORKDIR /app
 COPY --from=builder --chown=node:node /out/package.json ./package.json
