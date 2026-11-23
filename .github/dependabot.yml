@@ -18,6 +18,9 @@ updates:
       # typescript-eslint does not support TypeScript 7 yet (see README).
       - dependency-name: typescript
         update-types: [version-update:semver-major]
+      # Types must match the Node major we run (24, see .nvmrc / Dockerfiles).
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
