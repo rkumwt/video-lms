@@ -2,7 +2,7 @@
 
 Record your screen (optionally with camera + mic), save it to local disk or S3, and browse your library.
 
-> **Status:** Phase 8: Record page (screen / screen + camera + mic) and Settings page.
+> **Status:** Stage 1 MVP complete (Phases 1–9): record, upload, background processing via SQS, all deployed to AWS by CI/CD.
 
 ## Repository layout
 
@@ -142,6 +142,38 @@ browser                      API                                  S3 / disk
 Known limitation: WebM from `MediaRecorder` has no duration in its header, so some players show `--:--` until the
 file has loaded. The worker can remux it with ffmpeg later (Phase 9+). The app stores the measured duration.
 
+## Background processing (worker)
+
+```
+API /uploads/:id/complete ──SendMessage──► SQS vlp-video-events ──long poll──► worker (ECS Fargate Spot)
+  video: UPLOADED                           │ visibility 5 min            UPLOADED → PROCESSING → READY
+                                            └─ after 5 failed receives ─► vlp-video-events-dlq (14 days) ─► alarm → email
+```
+
+| Concern         | Approach                                                                                                                                           |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contract        | `videoEventSchema` in `@vlp/shared`: versioned, discriminated by `type`, so new events (transcription, thumbnails) can be added safely             |
+| Delivery        | SQS is at-least-once, so processing is **idempotent**: a duplicate for a `READY`/`FAILED` video is a no-op                                         |
+| Retries         | On failure the message is not deleted. It reappears after the visibility timeout and is retried, up to 5 receives                                  |
+| Final failure   | On the 5th receive the worker marks the video `FAILED` (so the UI never shows it stuck in "Processing"), and SQS then moves the message to the DLQ |
+| Poison messages | Malformed messages are never processed or deleted, so they end up in the DLQ for inspection                                                        |
+| Alarms          | Any message in the DLQ, or oldest message older than 15 min (worker down) → SNS email                                                              |
+| Shutdown        | SIGTERM stops polling (aborts the 20 s long poll), finishes in-flight messages, disconnects the DB, all within ECS's 30 s stop window              |
+| UI              | Home polls every 5 s while any video is `UPLOADING/UPLOADED/PROCESSING`, and stops once all are final                                              |
+
+Inspect or redrive the DLQ (AWS console → SQS → `vlp-video-events-dlq` → _Start DLQ redrive_), or:
+
+```bash
+aws sqs receive-message --queue-url "$(aws cloudformation describe-stacks --stack-name Vlp-Foundation \
+  --query "Stacks[0].Outputs[?OutputKey=='VideoEventsDlqUrl'].OutputValue" --output text)" --max-number-of-messages 10
+```
+
+Local development: start LocalStack (`docker compose --profile aws up -d localstack`, which creates the queue and DLQ),
+copy `apps/worker/.env.example` to `apps/worker/.env`, and run `pnpm dev`.
+
+Known follow-ups: a **transactional outbox**, so an SQS outage after `/complete` can't leave a video `UPLOADED`.
+Today a retried `/complete` re-queues it. Also thumbnails and ffmpeg remux (fixes the WebM duration header) in the worker.
+
 ## Web app structure
 
 ```
@@ -237,4 +269,4 @@ pipeline, GitHub/AWS setup and rollback.
 6. ✅ Web layout + home page
 7. ✅ Video upload API (presigned URL / multipart / local)
 8. ✅ Record + settings pages
-9. Worker: SQS processing, DLQ, status updates
+9. ✅ Worker: SQS processing, DLQ, status updates

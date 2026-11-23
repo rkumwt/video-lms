@@ -15,7 +15,7 @@ Three stacks, deployed to **ap-south-1 (Mumbai)** by default. You can change it 
 | Stack            | Contents                                                                                                                                                                        | Delete safely?                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `Vlp-Network`    | VPC, subnets, S3 gateway endpoint                                                                                                                                               | Yes, after `Vlp-App`                                                                      |
-| `Vlp-Foundation` | ECR repos, videos bucket (retained), SNS alerts topic, monthly budget. **Termination protection on.**                                                                           | Bucket is kept on purpose                                                                 |
+| `Vlp-Foundation` | ECR repos, videos bucket (retained), SNS alerts topic, monthly budget, SQS `vlp-video-events` + DLQ with alarms. **Termination protection on.**                                 | Bucket is kept on purpose                                                                 |
 | `Vlp-Data`       | RDS PostgreSQL 17 `db.t4g.micro`, isolated subnets, encrypted, 7-day backups, deletion protection + **termination protection**, credentials in Secrets Manager (`vlp/db/admin`) | ⏱ costs per hour; snapshot on delete                                                      |
 | `Vlp-Migrate`    | `vlp-jobs` cluster + `vlp-migrate` task definition (API image running `prisma migrate deploy`), used by the pipeline                                                            | Yes                                                                                       |
 | `Vlp-CiCd`       | GitHub OIDC deploy role `vlp-github-deploy` (imports the account's existing OIDC provider). Deployed by an admin only, never by CI                                              | Yes (CI stops working)                                                                    |
@@ -159,5 +159,4 @@ pnpm --filter @vlp/infra cdk destroy Vlp-Foundation   # bucket stays; empty/dele
 | -------------------------------------------- | ----------------------------------- |
 | GitHub OIDC deploy role                      | 4                                   |
 | RDS PostgreSQL + Secrets Manager credentials | 5                                   |
-| SQS queue + DLQ + DLQ alarm                  | 9                                   |
 | Custom domain + ACM, WAF, access logs        | Before real users (cost trade-offs) |

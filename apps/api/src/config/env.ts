@@ -32,6 +32,12 @@ const envSchema = z.object({
   S3_ENDPOINT: unsetIfEmpty(z.url().optional()),
   S3_FORCE_PATH_STYLE: z.stringbool().default(false),
 
+  // ---- Queue ---------------------------------------------------------------------------------------
+  /** Unset = events are only logged (local dev without LocalStack); videos stay UPLOADED. */
+  VIDEO_EVENTS_QUEUE_URL: unsetIfEmpty(z.url().optional()),
+  /** LocalStack endpoint for local development, e.g. http://localhost:4566 */
+  SQS_ENDPOINT: unsetIfEmpty(z.url().optional()),
+
   // ---- Storage: local disk -----------------------------------------------------------------------
   /** Off in production: Fargate disks are ephemeral, so LOCAL is for dev / single-host installs. */
   STORAGE_LOCAL_ENABLED: unsetIfEmpty(z.stringbool().optional()),

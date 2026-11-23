@@ -7,9 +7,12 @@ import {
   type StackProps,
 } from 'aws-cdk-lib';
 import * as budgets from 'aws-cdk-lib/aws-budgets';
+import * as cw from 'aws-cdk-lib/aws-cloudwatch';
+import * as cwActions from 'aws-cdk-lib/aws-cloudwatch-actions';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as sns from 'aws-cdk-lib/aws-sns';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as subs from 'aws-cdk-lib/aws-sns-subscriptions';
 import { type Construct } from 'constructs';
 
@@ -30,6 +33,8 @@ export class FoundationStack extends Stack {
   readonly workerRepo: ecr.Repository;
   readonly videosBucket: s3.Bucket;
   readonly alertsTopic: sns.Topic;
+  readonly videoEventsQueue: sqs.Queue;
+  readonly videoEventsDlq: sqs.Queue;
 
   constructor(scope: Construct, id: string, props: FoundationStackProps) {
     super(scope, id, props);
@@ -123,6 +128,56 @@ export class FoundationStack extends Stack {
     });
 
     // ---- Outputs --------------------------------------------------------------
+    // ---- Video events queue (API -> worker) + dead-letter queue ---------------
+    // Pay per request (first 1M/month free); no hourly cost.
+    this.videoEventsDlq = new sqs.Queue(this, 'VideoEventsDlq', {
+      queueName: `${config.appName}-video-events-dlq`,
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      enforceSSL: true,
+      retentionPeriod: Duration.days(14), // time to inspect and redrive poison messages
+    });
+    this.videoEventsQueue = new sqs.Queue(this, 'VideoEventsQueue', {
+      queueName: `${config.appName}-video-events`,
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      enforceSSL: true,
+      // Longer than the worker's worst-case processing time, or messages get processed twice.
+      visibilityTimeout: Duration.minutes(5),
+      receiveMessageWaitTime: Duration.seconds(20), // long polling: fewer empty receives
+      retentionPeriod: Duration.days(4),
+      deadLetterQueue: { queue: this.videoEventsDlq, maxReceiveCount: 5 },
+    });
+
+    const alarmAction = new cwActions.SnsAction(this.alertsTopic);
+    new cw.Alarm(this, 'VideoEventsDlqAlarm', {
+      alarmDescription: 'Video events failed 5 times and landed in the DLQ',
+      metric: this.videoEventsDlq.metricApproximateNumberOfMessagesVisible({
+        period: Duration.minutes(5),
+        statistic: 'Maximum',
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator: cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: cw.TreatMissingData.NOT_BREACHING,
+    }).addAlarmAction(alarmAction);
+    new cw.Alarm(this, 'VideoEventsBacklogAlarm', {
+      alarmDescription: 'Oldest video event is older than 15 minutes (worker down or stuck)',
+      metric: this.videoEventsQueue.metricApproximateAgeOfOldestMessage({
+        period: Duration.minutes(5),
+        statistic: 'Maximum',
+      }),
+      threshold: 15 * 60,
+      evaluationPeriods: 1,
+      comparisonOperator: cw.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      treatMissingData: cw.TreatMissingData.NOT_BREACHING,
+    }).addAlarmAction(alarmAction);
+
+    Validations.of(this.videoEventsDlq).acknowledge({
+      id: 'AwsSolutions-SQS3',
+      reason: 'This queue IS the dead-letter queue.',
+    });
+
+    new CfnOutput(this, 'VideoEventsQueueUrl', { value: this.videoEventsQueue.queueUrl });
+    new CfnOutput(this, 'VideoEventsDlqUrl', { value: this.videoEventsDlq.queueUrl });
     new CfnOutput(this, 'ApiRepoUri', { value: this.apiRepo.repositoryUri });
     new CfnOutput(this, 'WorkerRepoUri', { value: this.workerRepo.repositoryUri });
     new CfnOutput(this, 'VideosBucketName', { value: this.videosBucket.bucketName });

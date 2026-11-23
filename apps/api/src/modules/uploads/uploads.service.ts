@@ -12,6 +12,7 @@ import { env } from '../../config/env';
 import { getDb } from '../../lib/db';
 import { events } from '../../lib/events';
 import { HttpError } from '../../lib/http-error';
+import { logger } from '../../lib/logger';
 import { getStorage, videoObjectKey } from '../../lib/storage';
 import { settingsService } from '../settings/settings.service';
 import { toVideoDto } from '../videos/videos.mapper';
@@ -84,7 +85,11 @@ export const uploadsService = {
   /** Step 2: verify the bytes are there, mark UPLOADED and hand off to the worker. Idempotent. */
   async complete(id: string, input: CompleteUploadInput): Promise<Video> {
     const video = await findVideo(id);
-    if (DONE.has(video.status)) return toVideoDto(video);
+    if (DONE.has(video.status)) {
+      // A retried /complete re-queues processing if it never started (lost event).
+      if (video.status === 'UPLOADED') await events.videoUploaded(id).catch(() => undefined);
+      return toVideoDto(video);
+    }
     if (video.status === 'FAILED') throw HttpError.conflict('Upload has failed; start a new one');
 
     const { sizeBytes } = await getStorage(video.storageType).completeUpload({
@@ -98,7 +103,13 @@ export const uploadsService = {
       where: { id },
       data: { status: 'UPLOADED', sizeBytes: BigInt(sizeBytes) },
     });
-    await events.videoUploaded(id);
+    try {
+      await events.videoUploaded(id);
+    } catch (err) {
+      // The upload itself succeeded; don't fail the request. The video stays UPLOADED and is
+      // re-queued if the client retries /complete. (Production upgrade: transactional outbox.)
+      logger.error({ err, videoId: id }, 'Failed to queue video.uploaded');
+    }
     return toVideoDto(updated);
   },
 

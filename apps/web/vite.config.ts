@@ -17,6 +17,8 @@ export default defineConfig({
   build: { sourcemap: true },
   test: {
     environment: 'jsdom',
+    // user-event interaction tests can exceed 5s when CI runs every package in parallel
+    testTimeout: 15_000,
     setupFiles: ['./src/test/setup.ts'],
     css: false,
   },

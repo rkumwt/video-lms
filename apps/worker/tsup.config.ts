@@ -7,5 +7,6 @@ export default defineConfig({
   target: 'node24',
   sourcemap: true,
   clean: true,
-  noExternal: [/^@vlp\//],
+  // Bundle the pure-TS shared package; @vlp/db stays external (Prisma client + its own deps).
+  noExternal: ['@vlp/shared'],
 });
