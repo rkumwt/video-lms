@@ -19,3 +19,17 @@ Object.defineProperty(window, 'matchMedia', {
     removeEventListener: vi.fn(),
   })),
 });
+
+// jsdom lacks ResizeObserver (used by Radix primitives) and pointer-capture APIs.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
+for (const [name, impl] of [
+  ['hasPointerCapture', () => false],
+  ['scrollIntoView', () => undefined],
+] as const) {
+  if (!(name in Element.prototype)) Object.defineProperty(Element.prototype, name, { value: impl });
+}

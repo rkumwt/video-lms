@@ -55,3 +55,18 @@ export const videoListResponseSchema = z.object({
   nextCursor: z.uuid().nullable(),
 });
 export type VideoListResponse = z.infer<typeof videoListResponseSchema>;
+
+/** GET/PUT /api/v1/settings */
+export const settingsResponseSchema = z.object({
+  settings: settingsSchema,
+  /** Storage targets this server can actually use (LOCAL is off on AWS). */
+  availableStorage: z.array(storageTypeSchema).min(1),
+});
+export type SettingsResponse = z.infer<typeof settingsResponseSchema>;
+
+/** Capture presets for each quality level (used by the recorder). */
+export const QUALITY_PRESETS = {
+  LOW: { width: 1280, height: 720, frameRate: 30, videoBitsPerSecond: 2_500_000 },
+  MEDIUM: { width: 1920, height: 1080, frameRate: 30, videoBitsPerSecond: 5_000_000 },
+  HIGH: { width: 2560, height: 1440, frameRate: 30, videoBitsPerSecond: 8_000_000 },
+} as const satisfies Record<RecordingQuality, object>;

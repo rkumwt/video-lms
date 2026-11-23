@@ -4,6 +4,7 @@ import { Clapperboard, House, Settings, Video } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, NavLink, Outlet } from 'react-router';
 
+import { Toaster } from '@/components/ui/sonner';
 import { apiFetch } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { applyTheme, useThemeStore } from '@/stores/theme-store';
@@ -66,6 +67,7 @@ export function AppLayout() {
       </main>
 
       <AppFooter />
+      <Toaster richColors position="bottom-right" />
     </div>
   );
 }

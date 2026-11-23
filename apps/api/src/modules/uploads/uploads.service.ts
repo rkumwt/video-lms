@@ -13,6 +13,7 @@ import { getDb } from '../../lib/db';
 import { events } from '../../lib/events';
 import { HttpError } from '../../lib/http-error';
 import { getStorage, videoObjectKey } from '../../lib/storage';
+import { settingsService } from '../settings/settings.service';
 import { toVideoDto } from '../videos/videos.mapper';
 
 const DONE = new Set(['UPLOADED', 'PROCESSING', 'READY']);
@@ -34,10 +35,8 @@ export const uploadsService = {
       );
     }
     const db = getDb();
-    const storageType =
-      input.storageType ??
-      (await db.setting.findUnique({ where: { id: 1 } }))?.storageTarget ??
-      'S3';
+    // Same effective target the Settings page shows (falls back if the saved one isn't available).
+    const storageType = input.storageType ?? (await settingsService.get()).settings.storageTarget;
     const storage = getStorage(storageType); // throws if that target isn't available
 
     const id = uuidv7(); // time-ordered, matches the DB default

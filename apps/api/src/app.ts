@@ -9,6 +9,7 @@ import { env } from './config/env';
 import { logger } from './lib/logger';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler';
 import { healthRouter } from './modules/health/health.routes';
+import { settingsRouter } from './modules/settings/settings.routes';
 import { uploadsRouter } from './modules/uploads/uploads.routes';
 import { videosRouter } from './modules/videos/videos.routes';
 
@@ -42,6 +43,7 @@ export function createApp(): Express {
   // Feature modules (versioned so the contract can evolve without breaking clients).
   app.use('/api/v1/videos', videosRouter);
   app.use('/api/v1/uploads', uploadsRouter);
+  app.use('/api/v1/settings', settingsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

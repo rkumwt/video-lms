@@ -13,6 +13,7 @@
     "clean": "rm -rf dist .turbo coverage"
   },
   "dependencies": {
+    "@hookform/resolvers": "^7.0.8",
     "@tanstack/react-query": "^5.108.2",
     "@vlp/shared": "workspace:^",
     "class-variance-authority": "^0.7.1",
@@ -21,7 +22,9 @@
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-hook-form": "^7.92.0",
     "react-router": "^8.5.2",
+    "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.1",
     "zod": "^4.6.7",
     "zustand": "^5.1.0"

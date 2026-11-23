@@ -2,7 +2,7 @@
 
 Record your screen (optionally with camera + mic), save it to local disk or S3, and browse your library.
 
-> **Status:** Phase 7: video upload API (presigned S3 single/multipart, local-disk option, playback URLs).
+> **Status:** Phase 8: Record page (screen / screen + camera + mic) and Settings page.
 
 ## Repository layout
 
@@ -86,17 +86,19 @@ Check the generated import is `@/lib/utils` (the CLI sometimes writes `"cn"`).
 
 ## API
 
-| Method | Path                                  | Notes                                                                   |
-| ------ | ------------------------------------- | ----------------------------------------------------------------------- |
-| GET    | `/health`, `/api/health`              | Liveness (load balancer / browser)                                      |
-| GET    | `/health/ready`, `/api/health/ready`  | Readiness: database reachable (503 if not)                              |
-| GET    | `/api/v1/videos?limit=24&cursor=<id>` | Newest first, keyset pagination. Returns `{ items, total, nextCursor }` |
-| GET    | `/api/v1/videos/:id`                  | `{ video, playbackUrl }` (presigned S3 GET, or the local stream URL)    |
-| GET    | `/api/v1/videos/:id/stream`           | LOCAL storage only. Supports HTTP Range (seeking)                       |
-| POST   | `/api/v1/uploads`                     | Register a video (`UPLOADING`) and get upload instructions              |
-| PUT    | `/api/v1/uploads/:id/file`            | LOCAL only: raw body streamed to disk (size-capped)                     |
-| POST   | `/api/v1/uploads/:id/complete`        | Verify bytes, mark `UPLOADED`, emit `video.uploaded`. Idempotent        |
-| DELETE | `/api/v1/uploads/:id?uploadId=`       | Cancel an in-progress upload                                            |
+| Method | Path                                  | Notes                                                                                              |
+| ------ | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| GET    | `/health`, `/api/health`              | Liveness (load balancer / browser)                                                                 |
+| GET    | `/health/ready`, `/api/health/ready`  | Readiness: database reachable (503 if not)                                                         |
+| GET    | `/api/v1/videos?limit=24&cursor=<id>` | Newest first, keyset pagination. Returns `{ items, total, nextCursor }`                            |
+| GET    | `/api/v1/videos/:id`                  | `{ video, playbackUrl }` (presigned S3 GET, or the local stream URL)                               |
+| GET    | `/api/v1/videos/:id/stream`           | LOCAL storage only. Supports HTTP Range (seeking)                                                  |
+| POST   | `/api/v1/uploads`                     | Register a video (`UPLOADING`) and get upload instructions                                         |
+| PUT    | `/api/v1/uploads/:id/file`            | LOCAL only: raw body streamed to disk (size-capped)                                                |
+| POST   | `/api/v1/uploads/:id/complete`        | Verify bytes, mark `UPLOADED`, emit `video.uploaded`. Idempotent                                   |
+| DELETE | `/api/v1/uploads/:id?uploadId=`       | Cancel an in-progress upload                                                                       |
+| GET    | `/api/v1/settings`                    | `{ settings, availableStorage }` (the effective target falls back if the saved one is unavailable) |
+| PUT    | `/api/v1/settings`                    | Update any subset of `storageTarget`, `defaultRecordingMode`, `quality`, `micEnabled`              |
 
 All responses are validated against Zod schemas in `@vlp/shared` (browser and server share the same types).
 Errors use one envelope: `{ "error": { "code", "message", "details?", "requestId" } }`.
@@ -124,6 +126,22 @@ browser                      API                                  S3 / disk
 - **LOCAL storage** is for development and single-host installs. It's off on AWS
   (`STORAGE_LOCAL_ENABLED=false`) because Fargate disks are ephemeral.
 
+## Recording (web)
+
+| Concern         | Approach                                                                                                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Capture         | `getDisplayMedia` (screen, plus tab/system audio where supported), `getUserMedia` (camera, mic)                                                                                                           |
+| Screen + camera | Composited on a `<canvas>`: screen full-frame, camera in a circular bubble (bottom-right), then `canvas.captureStream()`                                                                                  |
+| Background tabs | The canvas is redrawn from a **Web Worker timer**, because `requestAnimationFrame` pauses when you switch to the tab you're recording                                                                     |
+| Audio           | Mic + system audio mixed with the Web Audio API into one track                                                                                                                                            |
+| Encoding        | `MediaRecorder` picks the best supported type: VP9/VP8 WebM, or MP4 on Safari. Bitrate and resolution follow the quality setting (720p / 1080p / 1440p)                                                   |
+| UX              | Pause/resume, auto-stop when the browser's "Stop sharing" is clicked, review before saving, a leave-page warning, upload progress and cancel                                                              |
+| Upload          | `features/upload/upload-video.ts`: create → PUT (XHR for progress) → complete. Multipart runs 4 parts in parallel with per-part retry and backoff. On failure or cancel it deletes the server-side upload |
+| Settings        | Saved in Postgres, cached in `localStorage` (Zod-validated) so the Record page gets its defaults instantly                                                                                                |
+
+Known limitation: WebM from `MediaRecorder` has no duration in its header, so some players show `--:--` until the
+file has loaded. The worker can remux it with ffmpeg later (Phase 9+). The app stores the measured duration.
+
 ## Web app structure
 
 ```
@@ -131,6 +149,9 @@ apps/web/src
   components/layout/   AppLayout (navbar, skip link, footer), ThemeToggle
   components/ui/       shadcn/ui primitives (generated: `pnpm dlx shadcn@latest add <name>`)
   features/videos/     data hooks (TanStack Query) + video components
+  features/record/     MediaRecorder hook, canvas compositor, audio mixer
+  features/upload/     upload client (single / multipart / local, progress, retry, cancel)
+  features/settings/   settings query + mutation, localStorage cache
   pages/               route components (Home, Record, Settings, 404)
   stores/              Zustand: UI-only state (theme). Server data stays in TanStack Query.
   routes.tsx           route table shared by the router and tests
@@ -215,5 +236,5 @@ pipeline, GitHub/AWS setup and rollback.
 5. ✅ Prisma schema, RDS, migrations in pipeline
 6. ✅ Web layout + home page
 7. ✅ Video upload API (presigned URL / multipart / local)
-8. Record + settings pages
+8. ✅ Record + settings pages
 9. Worker: SQS processing, DLQ, status updates
