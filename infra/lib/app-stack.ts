@@ -18,6 +18,7 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import type * as sns from 'aws-cdk-lib/aws-sns';
+import type * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as cr from 'aws-cdk-lib/custom-resources';
 import { type Construct } from 'constructs';
 
@@ -30,6 +31,7 @@ export interface AppStackProps extends StackProps {
   apiRepo: ecr.IRepository;
   workerRepo: ecr.IRepository;
   videosBucket: s3.IBucket;
+  videoEventsQueue: sqs.IQueue;
   alertsTopic: sns.ITopic;
   dbSecurityGroup: ec2.ISecurityGroup;
   dbSecret: secretsmanager.ISecret;
@@ -190,6 +192,7 @@ export class AppStack extends Stack {
         CORS_ORIGIN: appOrigin,
         AWS_REGION: this.region,
         VIDEOS_BUCKET: props.videosBucket.bucketName,
+        VIDEO_EVENTS_QUEUE_URL: props.videoEventsQueue.queueUrl,
         // Fargate disks are ephemeral: only S3 is allowed in AWS.
         STORAGE_LOCAL_ENABLED: 'false',
         ...dbEnvironment,
@@ -198,6 +201,7 @@ export class AppStack extends Stack {
       stopTimeout: Duration.seconds(30),
     });
     props.videosBucket.grantReadWrite(apiTask.taskRole);
+    props.videoEventsQueue.grantSendMessages(apiTask.taskRole);
 
     const apiSg = new ec2.SecurityGroup(this, 'ApiSg', {
       vpc,
@@ -256,12 +260,14 @@ export class AppStack extends Stack {
         APP_VERSION: imageTag,
         AWS_REGION: this.region,
         VIDEOS_BUCKET: props.videosBucket.bucketName,
+        VIDEO_EVENTS_QUEUE_URL: props.videoEventsQueue.queueUrl,
         ...dbEnvironment,
       },
       secrets: dbSecrets(props.dbSecret),
       stopTimeout: Duration.seconds(30),
     });
     props.videosBucket.grantReadWrite(workerTask.taskRole);
+    props.videoEventsQueue.grantConsumeMessages(workerTask.taskRole);
 
     const workerSg = new ec2.SecurityGroup(this, 'WorkerSg', {
       vpc,

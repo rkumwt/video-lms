@@ -283,3 +283,45 @@ describe('Direct-to-S3 uploads', () => {
     });
   });
 });
+
+describe('Video events queue', () => {
+  it('has an encrypted queue with a DLQ after 5 receives', () => {
+    const { foundation } = synth();
+    foundation.hasResourceProperties('AWS::SQS::Queue', {
+      QueueName: 'vlp-video-events',
+      SqsManagedSseEnabled: true,
+      VisibilityTimeout: 300,
+      ReceiveMessageWaitTimeSeconds: 20,
+      RedrivePolicy: Match.objectLike({ maxReceiveCount: 5 }),
+    });
+    foundation.hasResourceProperties('AWS::SQS::Queue', {
+      QueueName: 'vlp-video-events-dlq',
+      MessageRetentionPeriod: 14 * 24 * 3600,
+    });
+  });
+
+  it('alarms when anything lands in the DLQ', () => {
+    const { foundation } = synth();
+    foundation.hasResourceProperties('AWS::CloudWatch::Alarm', {
+      MetricName: 'ApproximateNumberOfMessagesVisible',
+      Threshold: 1,
+      AlarmActions: Match.anyValue(),
+    });
+  });
+
+  it('lets the API send and the worker consume', () => {
+    const { app } = synth({ imageTag: 'abc123' });
+    const policies = JSON.stringify(app.findResources('AWS::IAM::Policy'));
+    expect(policies).toContain('sqs:SendMessage');
+    expect(policies).toContain('sqs:ReceiveMessage');
+    expect(policies).toContain('sqs:DeleteMessage');
+    app.hasResourceProperties('AWS::ECS::TaskDefinition', {
+      ContainerDefinitions: [
+        Match.objectLike({
+          Name: 'worker',
+          Environment: Match.arrayWith([Match.objectLike({ Name: 'VIDEO_EVENTS_QUEUE_URL' })]),
+        }),
+      ],
+    });
+  });
+});

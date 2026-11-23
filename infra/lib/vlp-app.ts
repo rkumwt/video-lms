@@ -48,6 +48,7 @@ export function buildVlpApp(app: App, config: VlpConfig) {
     apiRepo: foundation.apiRepo,
     workerRepo: foundation.workerRepo,
     videosBucket: foundation.videosBucket,
+    videoEventsQueue: foundation.videoEventsQueue,
     alertsTopic: foundation.alertsTopic,
     dbSecurityGroup: data.securityGroup,
     dbSecret: data.secret,
