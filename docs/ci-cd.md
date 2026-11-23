@@ -49,7 +49,8 @@ merge to main ──► Deploy (.github/workflows/deploy.yml)   concurrency: dep
 3. **GitHub → Settings → Environments → `production`**: deployment branches = `main` only.
    Optionally add yourself as a _required reviewer_, which gives you a manual approval gate before every deploy.
 4. **GitHub → Settings → General → Pull Requests**: squash merging only (default message = PR title and
-   description), always suggest updating branches, automatically delete head branches.
+   description), always suggest updating branches. _Automatically delete head branches_ stays **off**:
+   merged phase branches are kept for review (see [git-workflow.md](git-workflow.md)).
 5. **GitHub → Settings → Rules → Rulesets → `main`**: restrict deletions, block force pushes,
    require linear history, require a pull request, require status check `Checks`.
 
